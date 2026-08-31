@@ -1,0 +1,4 @@
+package com.epicode.buildweekbackend3.entities;
+
+public class User {
+}
