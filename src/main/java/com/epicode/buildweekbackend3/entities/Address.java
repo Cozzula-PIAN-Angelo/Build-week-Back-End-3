@@ -1,37 +1,54 @@
 package com.epicode.buildweekbackend3.entities;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
-import jakarta.validation.constraints.NotBlank;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
+import jakarta.persistence.*;
+import lombok.*;
 
-@Getter
-@Setter
-@ToString
-@NoArgsConstructor
+import java.time.LocalDateTime;
+import java.util.UUID;
+
 @Entity
 @Table(name = "addresses")
-public class Address extends BaseEntity {
-    @NotBlank
-    private String street;      // via
-    @NotBlank
-    private String houseNumber; // civico
-    @NotBlank
-    private String locality;    // località
-    @NotBlank
-    private String zipCode;     // CAP
-    @NotBlank
-    private String municipality;// comune
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Address {
 
-    public Address(String street, String houseNumber, String locality, String zipCode, String municipality) {
-        this.street = street;
-        this.houseNumber = houseNumber;
-        this.locality = locality;
-        this.zipCode = zipCode;
-        this.municipality = municipality;
+    @Id
+    @GeneratedValue
+    private UUID id;
+
+    @Column(nullable = false)
+    private String street;
+
+    @Column(name = "building_number", nullable = false)
+    private String buildingNumber;
+
+    @Column(nullable = false)
+    private String city;
+
+    @Column(nullable = false)
+    private String province;
+
+    @Column(name = "postal_code", nullable = false)
+    private String postalCode;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void onPrePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    public void onPreUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 }
-
