@@ -11,15 +11,23 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
+// Punto unico di gestione delle eccezioni per tutto il progetto (non solo
+// per le Note): intercetta le eccezioni custom e restituisce sempre lo
+// stesso formato di errore { message, timestamp } con lo status corretto.
 @RestControllerAdvice
 public class ExceptionsHandler {
 
+    // 400 - dati "di business" non validi (es. partita IVA già in uso),
+    // lanciata esplicitamente dai service.
     @ExceptionHandler(ValidationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponseDTO handleValidationEx(ValidationException ex) {
         return new ErrorResponseDTO(ex.getMessage(), LocalDateTime.now());
     }
 
+    // 400 - fallimento delle annotazioni di validazione sui DTO (@NotBlank,
+    // @Email, ecc.) scatenato da @Valid nei controller. Concatena tutti i
+    // messaggi di errore dei singoli campi in un'unica stringa.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponseDTO handleValidationEx(MethodArgumentNotValidException ex) {
@@ -29,12 +37,17 @@ public class ExceptionsHandler {
         return new ErrorResponseDTO(message, LocalDateTime.now());
     }
 
+    // 401 - token JWT mancante, scaduto o non valido.
     @ExceptionHandler(UnauthorizedException.class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponseDTO handleUnauthorized(UnauthorizedException ex) {
         return new ErrorResponseDTO(ex.getMessage(), LocalDateTime.now());
     }
 
+    // 403 - utente autenticato ma senza i permessi per l'azione richiesta.
+    // Gestisce insieme la nostra ForbiddenException (lanciata a mano nei
+    // service, es. NotesService) e AuthorizationDeniedException (lanciata
+    // automaticamente da Spring Security quando un @PreAuthorize fallisce).
     @ExceptionHandler({ForbiddenException.class, AuthorizationDeniedException.class})
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorResponseDTO handleForbiddenEx(RuntimeException ex) {
@@ -42,12 +55,16 @@ public class ExceptionsHandler {
         return new ErrorResponseDTO(message, LocalDateTime.now());
     }
 
+    // 404 - risorsa richiesta (nota, cliente, ...) inesistente.
     @ExceptionHandler(NotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponseDTO handleNotFoundEx(NotFoundException ex) {
         return new ErrorResponseDTO("Risorsa con id " + ex.getMessage() + " non trovata", LocalDateTime.now());
     }
 
+    // 500 - fallback per qualunque eccezione non prevista sopra: logga lo
+    // stack trace lato server e restituisce un messaggio generico al client
+    // (mai i dettagli interni dell'errore).
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponseDTO handleGenericEx(Exception ex) {
