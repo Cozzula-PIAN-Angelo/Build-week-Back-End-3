@@ -2,6 +2,8 @@ package com.epicode.buildweekbackend3.services;
 
 import com.epicode.buildweekbackend3.entities.Address;
 import com.epicode.buildweekbackend3.entities.Client;
+import com.epicode.buildweekbackend3.entities.Roles;
+import com.epicode.buildweekbackend3.entities.User;
 import com.epicode.buildweekbackend3.exceptions.NotFoundException;
 import com.epicode.buildweekbackend3.exceptions.ValidationException;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
@@ -24,7 +26,7 @@ public class ClientsService {
         this.addressesRepository = addressesRepository;
     }
 
-    public Client create(NewClientDTO payload) {
+    public Client create(NewClientDTO payload, User currentUser) {
         if (this.clientsRepository.existsByVatNumber(payload.vatNumber()))
             throw new ValidationException("La partita IVA " + payload.vatNumber() + " è già in uso");
 
@@ -32,16 +34,20 @@ public class ClientsService {
         newClient.setEmail(payload.email());
         newClient.setAnnualRevenue(payload.annualRevenue());
 
-        Address legale = this.addressesRepository.findById(payload.legalAddressId())
-                .orElseThrow(() -> new NotFoundException(payload.legalAddressId()));
-        newClient.setLegalAddress(legale);
+        Address legal = this.findAddress(payload.legalAddressId());
+        newClient.setLegalAddress(legal);
 
         if (payload.operationalAddressId() != null) {
-            Address operativo = this.addressesRepository.findById(payload.operationalAddressId())
-                    .orElseThrow(() -> new NotFoundException(payload.operationalAddressId()));
-            newClient.setOperationalAddress(operativo);
+            Address operational = this.findAddress(payload.operationalAddressId());
+            newClient.setOperationalAddress(operational);
         } else {
-            newClient.setOperationalAddress(legale);
+            newClient.setOperationalAddress(legal);
+        }
+
+        if (currentUser.getRole() == Roles.COMMERCIALE) {
+            newClient.setSalesRep(currentUser);
+        } else {
+            newClient.setSalesRep(null);
         }
 
         return this.clientsRepository.save(newClient);
@@ -58,5 +64,39 @@ public class ClientsService {
         if (size > 100) size = 100;
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
         return this.clientsRepository.findAll(pageable);
+    }
+
+    // metodo che trasforma un id in un Address
+    private Address findAddress(Long addressId) {
+        return this.addressesRepository.findById(addressId).orElseThrow(() -> new NotFoundException(addressId));
+    }
+
+    public Client findByIdAndUpdate(long clientId, NewClientDTO payload) {
+        Client clientFromDB = this.findById(clientId);
+
+        if (!clientFromDB.getVatNumber().equals(payload.vatNumber())
+                && this.clientsRepository.existsByVatNumber(payload.vatNumber()))
+            throw new ValidationException("La partita IVA " + payload.vatNumber() + " è già in uso");
+
+        clientFromDB.setCompanyName(payload.companyName());
+        clientFromDB.setVatNumber(payload.vatNumber());
+        clientFromDB.setEmail(payload.email());
+        clientFromDB.setAnnualRevenue(payload.annualRevenue());
+        clientFromDB.setCompanyType(payload.companyType());
+
+        Address legale = this.findAddress(payload.legalAddressId());
+        clientFromDB.setLegalAddress(legale);
+        clientFromDB.setOperationalAddress(
+                payload.operationalAddressId() != null
+                        ? this.findAddress(payload.operationalAddressId())
+                        : legale);
+
+        return this.clientsRepository.save(clientFromDB);
+    }
+
+    // void perché non c'è niente da restituire
+    public void findByIdAndDelete(long clientId) {
+        Client clientFromDB = this.findById(clientId);
+        this.clientsRepository.delete(clientFromDB);
     }
 }
