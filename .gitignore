@@ -4,6 +4,10 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# Ignora le configurazioni locali private dei dev
+#ignora il mio application local props ma mantiene il app properties generale dell app comune a tutti
+src/main/resources/application-local.properties
+
 ### STS ###
 .apt_generated
 .classpath
