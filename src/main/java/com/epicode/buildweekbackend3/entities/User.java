@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+
 import java.util.Collection;
 import java.util.List;
 
@@ -13,7 +14,7 @@ import java.util.List;
 public class User implements UserDetails {
 
     @Id
-    @GeneratedValue (strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
@@ -33,7 +34,7 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private Roles role;
 
-    public User(){
+    public User() {
 
     }
 
@@ -45,24 +46,45 @@ public class User implements UserDetails {
         this.role = Roles.USER;
     }
 
-    public Long getId() { return id;}
+    public Long getId() {
+        return id;
+    }
 
-    public String getName() { return name;}
+    public String getName() {
+        return name;
+    }
 
-    public void setName(String name) { this.name = name;}
+    public void setName(String name) {
+        this.name = name;
+    }
 
-    public String getSurname() { return surname;}
+    public String getSurname() {
+        return surname;
+    }
 
-    public void setSurname(String surname) { this.surname = surname;}
+    public void setSurname(String surname) {
+        this.surname = surname;
+    }
 
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getEmail() {
+        return email;
+    }
 
-    public void setPassword(String password) { this.password = password; }
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-    public Roles getRole() { return role; }
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
-    public void setRole(Roles role) { this.role = role; }
+    public Roles getRole() {
+        return role;
+    }
+
+    public void setRole(Roles role) {
+        this.role = role;
+    }
 
 
     // UserDetails
@@ -79,7 +101,7 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return "";
+        return email;
     }
 
 
