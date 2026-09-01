@@ -7,6 +7,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -55,11 +56,19 @@ public class ExceptionsHandler {
         return new ErrorResponseDTO(message, LocalDateTime.now());
     }
 
-    // 404 - risorsa richiesta (nota, cliente, ...) inesistente.
+    // 404 - risorsa richiesta (nota, cliente, ...) inesistente. Il messaggio
+    // completo viene gia' costruito da NotFoundException (o passato dai service).
     @ExceptionHandler(NotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponseDTO handleNotFoundEx(NotFoundException ex) {
-        return new ErrorResponseDTO("Risorsa con id " + ex.getMessage() + " non trovata", LocalDateTime.now());
+        return new ErrorResponseDTO(ex.getMessage(), LocalDateTime.now());
+    }
+
+    // 404 - endpoint inesistente (nessuna rotta mappata su URL/metodo richiesti).
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponseDTO handleNoResourceEx(NoResourceFoundException ex) {
+        return new ErrorResponseDTO("Endpoint non trovato: " + ex.getResourcePath(), LocalDateTime.now());
     }
 
     // 500 - fallback per qualunque eccezione non prevista sopra: logga lo

@@ -13,7 +13,6 @@ import org.springframework.validation.ObjectError;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -33,7 +32,7 @@ public class AddressesController {
     }
 
     @GetMapping("/{id}")
-    public Address getById(@PathVariable UUID id) {
+    public Address getById(@PathVariable Long id) {
         return addressesService.findById(id);
     }
 
@@ -52,7 +51,7 @@ public class AddressesController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'COMMERCIALE')")
-    public Address update(@PathVariable UUID id, @RequestBody @Validated AddressDTO body, BindingResult validation) {
+    public Address update(@PathVariable Long id, @RequestBody @Validated AddressDTO body, BindingResult validation) {
         if (validation.hasErrors()) {
             String messages = validation.getAllErrors().stream()
                     .map(ObjectError::getDefaultMessage)
@@ -65,7 +64,7 @@ public class AddressesController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasAuthority('ADMIN')")
-    public void delete(@PathVariable UUID id) {
+    public void delete(@PathVariable Long id) {
         addressesService.findByIdAndDelete(id);
     }
 }
