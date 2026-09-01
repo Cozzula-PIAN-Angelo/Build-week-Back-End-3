@@ -8,9 +8,11 @@ import com.epicode.buildweekbackend3.payloads.AssignRoleDTO;
 import com.epicode.buildweekbackend3.payloads.NewUserDTO;
 import com.epicode.buildweekbackend3.repositories.UsersRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Service
 public class UsersService {
     private final UsersRepository usersRepository;
     private final PasswordEncoder bcrypt;
@@ -26,7 +28,7 @@ public class UsersService {
         if(this.usersRepository.findByEmail(payload.email()).isPresent())
             throw new ValidationException("L'email " + payload.email() + " e gia in uso");
 
-        User newUser = new User(payload.name(), payload.surname(), payload.email(), bcrypt.encode(payload.password()));
+        User newUser = new User(payload.email(), bcrypt.encode(payload.password()), payload.name(), payload.surname());
         return this.usersRepository.save(newUser);
     }
     public User findById(long userId) {
@@ -52,5 +54,10 @@ public class UsersService {
             throw new ValidationException("Ruolo non valido: " + body.roles() + ". Valori ammessi: USER,COMMERCIALE,CONTABILE,ADMIN");
         }
         return this.usersRepository.save(userFromDB);
+    }
+
+    public void findByIdAndDelete(long userId) {
+        User userFromDB = this.findById(userId);
+        this.usersRepository.delete(userFromDB);
     }
 }
