@@ -1,7 +1,7 @@
 {
 	"info": {
-		"name": "BuildWeek Back-End 3 - Users",
-		"description": "Auth + Users CRUD.\n\nFlujo sugerido:\n1. Auth > Register admin\n2. Auth > Register user\n3. Auth > Register temp (para borrar)\n4. Auth > Login admin  (guarda {{accessToken}} automaticamente)\n5. Users > cualquier request (usa el Bearer token de la coleccion)\n\nVariables de coleccion:\n- baseUrl: http://localhost:2462\n- accessToken: lo setea el login\n- userId: id para probar GET/PUT/PATCH por id\n- tempUserId: id del usuario temp, para el DELETE",
+		"name": "BuildWeek Back-End 3 - CRM",
+		"description": "Auth + Users + Addresses + Clients + Notes CRUD.\n\nFlujo sugerido:\n1. Auth > Register admin\n2. Auth > Register user\n3. Auth > Register temp (para borrar)\n4. Auth > Login admin  (guarda {{accessToken}} automaticamente, necesario para Addresses/Clients/Notes)\n5. Users > cualquier request (usa el Bearer token de la coleccion)\n6. Addresses > Create address (legal)  (guarda {{addressId}})\n7. Addresses > Create address (temp, para borrar)  (guarda {{tempAddressId}})\n8. Clients > Create client  (usa {{addressId}}, guarda {{clientId}})\n9. Clients > Create client (temp, para borrar)  (guarda {{tempClientId}})\n10. Notes > Create note  (usa {{clientId}}, guarda {{noteId}})\n\nNota: crear/editar/borrar Addresses requiere rol ADMIN o COMMERCIALE (borrar solo ADMIN); crear Notes requiere ser el referente COMMERCIALE del cliente o ADMIN. El flujo por defecto usa siempre el token de admin.\n\nVariables de coleccion:\n- baseUrl: http://localhost:2462\n- accessToken: lo setea el login\n- userId: id para probar GET/PUT/PATCH por id\n- tempUserId: id del usuario temp, para el DELETE\n- addressId / tempAddressId: ids de indirizzi creados\n- clientId / tempClientId: ids de clientes creados\n- noteId: id de la nota creada",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -30,6 +30,26 @@
 		{
 			"key": "tempUserId",
 			"value": "3"
+		},
+		{
+			"key": "addressId",
+			"value": ""
+		},
+		{
+			"key": "tempAddressId",
+			"value": ""
+		},
+		{
+			"key": "clientId",
+			"value": ""
+		},
+		{
+			"key": "tempClientId",
+			"value": ""
+		},
+		{
+			"key": "noteId",
+			"value": ""
 		}
 	],
 	"item": [
@@ -434,6 +454,501 @@
 								"api",
 								"users",
 								"me"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Addresses",
+			"description": "Crear/editar requiere rol ADMIN o COMMERCIALE. Borrar requiere ADMIN. GET no requiere rol especifico (solo estar autenticado).",
+			"item": [
+				{
+					"name": "Create address (legal)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"addressId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"10\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20100\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses"
+							]
+						},
+						"description": "Responde 201 con el indirizzo creado. El script guarda el id en {{addressId}} (para usarlo como legalAddressId en Clients > Create client)."
+					}
+				},
+				{
+					"name": "Create address (temp, para borrar)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"tempAddressId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"street\": \"Via Temp\",\n  \"buildingNumber\": \"1\",\n  \"city\": \"Torino\",\n  \"province\": \"TO\",\n  \"postalCode\": \"10100\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get all addresses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses?page=0&size=10&sortBy=id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "sortBy",
+									"value": "id"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get address by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses",
+								"{{addressId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Update address by id",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"12\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20121\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses",
+								"{{addressId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete address by id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{tempAddressId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses",
+								"{{tempAddressId}}"
+							]
+						},
+						"description": "Responde 204. Usa {{tempAddressId}} (el indirizzo temp creado antes) para no romper el legalAddressId usado por Clients."
+					}
+				}
+			]
+		},
+		{
+			"name": "Clients",
+			"description": "Requiere estar autenticado (cualquier rol). legalAddressId debe ser el id de un Address existente (ver Addresses > Create address).",
+			"item": [
+				{
+					"name": "Create client",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"clientId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Acme SRL\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"info@acme.com\",\n  \"annualRevenue\": 250000.00,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clients",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients"
+							]
+						},
+						"description": "Responde 201 con el Client creado (referente commerciale = usuario autenticado). companyType admite: PA, SAS, SPA, SRL. El script guarda el id en {{clientId}}."
+					}
+				},
+				{
+					"name": "Create client (temp, para borrar)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"tempClientId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Temp SRL\",\n  \"vatNumber\": \"98765432109\",\n  \"email\": \"info@temp.com\",\n  \"annualRevenue\": 0,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clients",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get all clients",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients?page=0&size=10&sortBy=id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "sortBy",
+									"value": "id"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get client by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Update client by id",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Acme SRL\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"contact@acme.com\",\n  \"annualRevenue\": 300000.00,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete client by id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{tempClientId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{tempClientId}}"
+							]
+						},
+						"description": "Responde 204. Usa {{tempClientId}} (el Client temp creado antes) para no romper el clientId usado por Notes."
+					}
+				}
+			]
+		},
+		{
+			"name": "Notes",
+			"description": "Crear/editar/borrar requiere ser ADMIN o el COMMERCIALE referente del cliente indicado en el path. El autor y el cliente nunca se leen del body: el autor es siempre el usuario autenticado (JWT), el cliente viene del path.",
+			"item": [
+				{
+					"name": "Create note",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"noteId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"text\": \"Cliente interessato a un rinnovo contrattuale entro fine anno\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}",
+								"notes"
+							]
+						},
+						"description": "Responde 201 con la nota creada. El script guarda el id en {{noteId}}."
+					}
+				},
+				{
+					"name": "Get notes by client",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}",
+								"notes"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get note by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"notes",
+								"{{noteId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Update note by id",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"text\": \"Cliente interessato a un rinnovo contrattuale entro fine anno - aggiornamento dopo call\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"notes",
+								"{{noteId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete note by id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"notes",
+								"{{noteId}}"
 							]
 						}
 					}
