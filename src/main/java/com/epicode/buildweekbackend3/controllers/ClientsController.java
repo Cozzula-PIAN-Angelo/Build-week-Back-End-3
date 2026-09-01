@@ -1,11 +1,13 @@
 package com.epicode.buildweekbackend3.controllers;
 
 import com.epicode.buildweekbackend3.entities.Client;
+import com.epicode.buildweekbackend3.entities.User;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
 import com.epicode.buildweekbackend3.services.ClientsService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,8 +21,9 @@ public class ClientsController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Client create(@RequestBody @Valid NewClientDTO payload) {
-        return this.clientsService.create(payload);
+    public Client create(@RequestBody @Valid NewClientDTO payload,
+                         @AuthenticationPrincipal User currentUser) {
+        return this.clientsService.create(payload, currentUser);
     }
 
     @GetMapping("/{clientId}")
@@ -33,5 +36,16 @@ public class ClientsController {
                                @RequestParam(defaultValue = "10") int size,
                                @RequestParam(defaultValue = "id") String sortBy) {
         return this.clientsService.findAll(page, size, sortBy);
+    }
+
+    @PutMapping("/{clientId}")
+    public Client update(@PathVariable long clientId, @RequestBody @Valid NewClientDTO payload) {
+        return this.clientsService.findByIdAndUpdate(clientId, payload);
+    }
+
+    @DeleteMapping("/{clientId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable long clientId) {
+        this.clientsService.findByIdAndDelete(clientId);
     }
 }
