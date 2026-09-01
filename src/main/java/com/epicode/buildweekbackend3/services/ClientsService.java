@@ -7,6 +7,10 @@ import com.epicode.buildweekbackend3.exceptions.ValidationException;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
 import com.epicode.buildweekbackend3.repositories.AddressesRepository;
 import com.epicode.buildweekbackend3.repositories.ClientsRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -48,5 +52,11 @@ public class ClientsService {
     public Client findById(long clientId) {
         return this.clientsRepository.findById(clientId)
                 .orElseThrow(() -> new NotFoundException(clientId));
+    }
+
+    public Page<Client> findAll(int page, int size, String sortBy) {
+        if (size > 100) size = 100;
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
+        return this.clientsRepository.findAll(pageable);
     }
 }
