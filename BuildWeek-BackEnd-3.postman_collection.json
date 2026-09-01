@@ -1,7 +1,7 @@
 {
 	"info": {
-		"name": "BuildWeek Back-End 3 - CRM",
-		"description": "Auth + Users + Addresses + Clients + Notes CRUD.\n\nFlujo sugerido:\n1. Auth > Register admin\n2. Auth > Register user\n3. Auth > Register temp (para borrar)\n4. Auth > Login admin  (guarda {{accessToken}} automaticamente, necesario para Addresses/Clients/Notes)\n5. Users > cualquier request (usa el Bearer token de la coleccion)\n6. Addresses > Create address (legal)  (guarda {{addressId}})\n7. Addresses > Create address (temp, para borrar)  (guarda {{tempAddressId}})\n8. Clients > Create client  (usa {{addressId}}, guarda {{clientId}})\n9. Clients > Create client (temp, para borrar)  (guarda {{tempClientId}})\n10. Notes > Create note  (usa {{clientId}}, guarda {{noteId}})\n\nNota: crear/editar/borrar Addresses requiere rol ADMIN o COMMERCIALE (borrar solo ADMIN); crear Notes requiere ser el referente COMMERCIALE del cliente o ADMIN. El flujo por defecto usa siempre el token de admin.\n\nVariables de coleccion:\n- baseUrl: http://localhost:2462\n- accessToken: lo setea el login\n- userId: id para probar GET/PUT/PATCH por id\n- tempUserId: id del usuario temp, para el DELETE\n- addressId / tempAddressId: ids de indirizzi creados\n- clientId / tempClientId: ids de clientes creados\n- noteId: id de la nota creada",
+		"name": "BuildWeek Back-End 3 - CRM EPIC ENERGY",
+		"description": "Auth + Users + Addresses + Clients + Notes.\n\nFlusso suggerito:\n1. Auth > Register admin / Register user\n2. Auth > Login admin (salva {{accessToken}} in automatico)\n3. Addresses > Create address (salva {{addressId}})\n4. Clients > Create client (usa {{addressId}} come legalAddressId, salva {{clientId}})\n5. Notes > Create note (usa {{clientId}}, salva {{noteId}})\n\nATTENZIONE - bug noto (2026-09-01): gli endpoint con @PreAuthorize basato su ruolo (Users: tutti tranne /me; Addresses: POST/PUT/DELETE) rispondono sempre 403, chiunque sia loggato e qualunque ruolo abbia, perche' User.getAuthorities() ritorna sempre una lista vuota. Finche' non e' corretto, quegli endpoint non sono testabili da qui. Gli endpoint di Note NON usano @PreAuthorize (controllo di ruolo fatto a mano nel service), quindi non sono affetti da questo bug.\n\nVariabili di collection:\n- baseUrl: http://localhost:2462\n- accessToken: lo setta il login\n- userId / tempUserId: id utente per testare GET/PUT/PATCH/DELETE\n- addressId: id indirizzo creato con Addresses > Create address\n- clientId: id cliente creato con Clients > Create client\n- noteId: id nota creata con Notes > Create note",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -36,15 +36,7 @@
 			"value": ""
 		},
 		{
-			"key": "tempAddressId",
-			"value": ""
-		},
-		{
 			"key": "clientId",
-			"value": ""
-		},
-		{
-			"key": "tempClientId",
 			"value": ""
 		},
 		{
@@ -99,7 +91,7 @@
 								"register"
 							]
 						},
-						"description": "Crea el usuario. Responde 201 { \"userId\": N }. El rol por defecto es USER; para hacerlo ADMIN usa luego Users > Assign role."
+						"description": "Crea l'utente. Risponde 201 { \"userId\": N }. Il ruolo di default e' USER; per portarlo ad ADMIN/COMMERCIALE serve Users > Assign role, che al momento e' bloccato dal bug sulle authorities (vedi descrizione della collection)."
 					}
 				},
 				{
@@ -147,7 +139,7 @@
 					}
 				},
 				{
-					"name": "Register - temp (para borrar)",
+					"name": "Register - temp (da eliminare)",
 					"event": [
 						{
 							"listen": "test",
@@ -232,7 +224,7 @@
 								"login"
 							]
 						},
-						"description": "Responde { \"accessToken\": \"...\" }. El script guarda el token en {{accessToken}}."
+						"description": "Risponde { \"accessToken\": \"...\" }. Lo script salva il token in {{accessToken}}, usato da tutte le altre richieste della collection."
 					}
 				},
 				{
@@ -298,7 +290,8 @@
 								"api",
 								"users"
 							]
-						}
+						},
+						"description": "Richiede ADMIN (@PreAuthorize hasRole). Bug noto: risponde sempre 403 finche' User.getAuthorities() non e' corretto."
 					}
 				},
 				{
@@ -316,7 +309,8 @@
 								"users",
 								"me"
 							]
-						}
+						},
+						"description": "Nessuna restrizione di ruolo: funziona per qualunque utente autenticato."
 					}
 				},
 				{
@@ -334,35 +328,8 @@
 								"users",
 								"{{userId}}"
 							]
-						}
-					}
-				},
-				{
-					"name": "Update my profile",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Mario\",\n  \"surname\": \"Verdi\",\n  \"email\": \"admin@test.com\",\n  \"password\": \"admin123\"\n}"
 						},
-						"url": {
-							"raw": "{{baseUrl}}/api/users/me",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"users",
-								"me"
-							]
-						},
-						"description": "Todos los campos son obligatorios (incluida la password: se re-hashea)."
+						"description": "Richiede ADMIN. Bug noto: risponde sempre 403."
 					}
 				},
 				{
@@ -389,7 +356,8 @@
 								"users",
 								"{{userId}}"
 							]
-						}
+						},
+						"description": "Richiede ADMIN. Bug noto: risponde sempre 403."
 					}
 				},
 				{
@@ -404,7 +372,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"roles\": \"ADMIN\"\n}"
+							"raw": "{\n  \"roles\": \"COMMERCIALE\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/users/{{userId}}/role",
@@ -418,7 +386,7 @@
 								"role"
 							]
 						},
-						"description": "Valores admitidos: USER, COMMERCIALE, CONTABILE, ADMIN. El campo del body se llama \"roles\"."
+						"description": "Valori ammessi: USER, COMMERCIALE, CONTABILE, ADMIN. Richiede ADMIN. Bug noto: risponde sempre 403 - serve per testare il flusso COMMERCIALE/ADMIN delle Note, quindi finche' non e' corretto va aggirato assegnando il ruolo direttamente in DB."
 					}
 				},
 				{
@@ -437,23 +405,419 @@
 								"{{tempUserId}}"
 							]
 						},
-						"description": "Responde 204. Usa {{tempUserId}} (el usuario temp@test.com registrado antes)."
+						"description": "Richiede ADMIN. Bug noto: risponde sempre 403. Usa {{tempUserId}} (l'utente temp@test.com registrato prima)."
 					}
-				},
+				}
+			]
+		},
+		{
+			"name": "Addresses",
+			"item": [
 				{
-					"name": "Delete my profile",
+					"name": "Create address",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"addressId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
 					"request": {
-						"method": "DELETE",
-						"header": [],
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"10\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20100\"\n}"
+						},
 						"url": {
-							"raw": "{{baseUrl}}/api/users/me",
+							"raw": "{{baseUrl}}/api/addresses",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
-								"users",
-								"me"
+								"addresses"
+							]
+						},
+						"description": "Richiede ADMIN o COMMERCIALE (@PreAuthorize hasAnyAuthority). Bug noto: risponde sempre 403 finche' User.getAuthorities() non e' corretto - senza questo endpoint non si puo' creare un Client (serve legalAddressId) e quindi nemmeno una Nota."
+					}
+				},
+				{
+					"name": "Get address by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses",
+								"{{addressId}}"
+							]
+						},
+						"description": "Nessuna restrizione di ruolo."
+					}
+				},
+				{
+					"name": "Get all addresses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses?page=0&size=10&sortBy=id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "sortBy",
+									"value": "id"
+								}
+							]
+						},
+						"description": "Nessuna restrizione di ruolo."
+					}
+				},
+				{
+					"name": "Update address",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"street\": \"Via Torino\",\n  \"buildingNumber\": \"20\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20121\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses",
+								"{{addressId}}"
+							]
+						},
+						"description": "Richiede ADMIN o COMMERCIALE. Bug noto: risponde sempre 403."
+					}
+				},
+				{
+					"name": "Delete address",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"addresses",
+								"{{addressId}}"
+							]
+						},
+						"description": "Richiede ADMIN. Bug noto: risponde sempre 403. Attenzione: fallisce se l'indirizzo e' ancora in uso come sede di un Client."
+					}
+				}
+			]
+		},
+		{
+			"name": "Clients",
+			"item": [
+				{
+					"name": "Create client",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"clientId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Acme Srl\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"info@acme.it\",\n  \"annualRevenue\": 500000,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clients",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients"
+							]
+						},
+						"description": "Nessuna restrizione di ruolo nel controller. Se chi crea e' COMMERCIALE, diventa automaticamente il referente assegnato (salesRep) - condizione necessaria per testare Notes > Create note. legalAddressId deve essere un {{addressId}} valido (vedi Addresses > Create address)."
+					}
+				},
+				{
+					"name": "Get client by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get all clients",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients?page=0&size=10&sortBy=id",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								},
+								{
+									"key": "sortBy",
+									"value": "id"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Update client",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"companyName\": \"Acme Srl\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"contatti@acme.it\",\n  \"annualRevenue\": 600000,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete client",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Notes",
+			"item": [
+				{
+					"name": "Create note",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"noteId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"text\": \"Cliente interessato a un rinnovo contrattuale entro fine anno\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}",
+								"notes"
+							]
+						},
+						"description": "Consentito solo ad ADMIN, oppure a COMMERCIALE se e' il referente assegnato del cliente {{clientId}} (vedi Clients > Create client). Controllo fatto a mano nel service, non con @PreAuthorize: non affetto dal bug sulle authorities."
+					}
+				},
+				{
+					"name": "Get notes by client",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clients",
+								"{{clientId}}",
+								"notes"
+							]
+						}
+					}
+				},
+				{
+					"name": "Get note by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"notes",
+								"{{noteId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Update note",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"text\": \"Cliente ha confermato il rinnovo, procedere con il contratto\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"notes",
+								"{{noteId}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete note",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"notes",
+								"{{noteId}}"
 							]
 						}
 					}
