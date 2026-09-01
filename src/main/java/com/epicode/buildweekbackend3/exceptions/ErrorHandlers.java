@@ -5,10 +5,13 @@ import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
+@RestControllerAdvice
 public class ErrorHandlers {
 
     @ExceptionHandler(ValidationException.class)
@@ -41,6 +44,12 @@ public class ErrorHandlers {
     @ResponseStatus(HttpStatus.NOT_FOUND) // 404
     public ErrorsDTO handleNotFoundEx(NotFoundException ex) {
         return new ErrorsDTO(ex.getMessage(), LocalDateTime.now());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND) // 404 (endpoint inesistente)
+    public ErrorsDTO handleNoResourceEx(NoResourceFoundException ex) {
+        return new ErrorsDTO("Endpoint non trovato: " + ex.getResourcePath(), LocalDateTime.now());
     }
 
     @ExceptionHandler(Exception.class)
