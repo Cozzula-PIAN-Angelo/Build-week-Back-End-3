@@ -12,8 +12,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
-
 @Service
 public class AddressesService {
 
@@ -25,7 +23,7 @@ public class AddressesService {
         return addressesRepository.findAll(pageable);
     }
 
-    public Address findById(UUID id) {
+    public Address findById(Long id) {
         return addressesRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Indirizzo con id " + id + " non trovato!"));
     }
@@ -42,7 +40,7 @@ public class AddressesService {
         return addressesRepository.save(newAddress);
     }
 
-    public Address findByIdAndUpdate(UUID id, AddressDTO body) {
+    public Address findByIdAndUpdate(Long id, AddressDTO body) {
         Address found = this.findById(id);
 
         found.setStreet(body.street());
@@ -54,7 +52,7 @@ public class AddressesService {
         return addressesRepository.save(found);
     }
 
-    public void findByIdAndDelete(UUID id) {
+    public void findByIdAndDelete(Long id) {
         Address found = this.findById(id);
         try {
             addressesRepository.delete(found);

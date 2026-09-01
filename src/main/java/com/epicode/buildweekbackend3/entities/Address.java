@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "addresses")
@@ -13,11 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Address {
-
-    @Id
-    @GeneratedValue
-    private UUID id;
+public class Address extends BaseEntity {
 
     @Column(nullable = false)
     private String street;
