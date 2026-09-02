@@ -10,7 +10,10 @@ import lombok.ToString;
 // accesso (chi può leggerla/modificarla) si basa sul Cliente, non
 // sull'autore: la logica vera è in NotesService, non qui.
 @Entity
-@Table(name = "notes")
+@Table(name = "notes", indexes = {
+        @Index(name = "idx_notes_client_id", columnList = "client_id"),
+        @Index(name = "idx_notes_author_id", columnList = "author_id")
+})
 @Getter
 @Setter
 @ToString

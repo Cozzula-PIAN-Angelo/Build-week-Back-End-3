@@ -7,8 +7,8 @@ import com.epicode.buildweekbackend3.entities.User;
 import com.epicode.buildweekbackend3.exceptions.ForbiddenException;
 import com.epicode.buildweekbackend3.exceptions.NotFoundException;
 import com.epicode.buildweekbackend3.exceptions.ValidationException;
+import com.epicode.buildweekbackend3.payloads.AddressDTO;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
-import com.epicode.buildweekbackend3.repositories.AddressesRepository;
 import com.epicode.buildweekbackend3.repositories.ClientsRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,11 +20,9 @@ import org.springframework.stereotype.Service;
 public class ClientsService {
 
     private final ClientsRepository clientsRepository; // per salvare/leggere clienti
-    private final AddressesRepository addressesRepository; // per trasformare gli id degli indirizzi in oggetti Address
 
-    public ClientsService(ClientsRepository clientsRepository, AddressesRepository addressesRepository) {
+    public ClientsService(ClientsRepository clientsRepository) {
         this.clientsRepository = clientsRepository;
-        this.addressesRepository = addressesRepository;
     }
 
     public Client create(NewClientDTO payload, User currentUser) {
@@ -36,14 +34,16 @@ public class ClientsService {
         newClient.setAnnualRevenue(payload.annualRevenue());
         newClient.setLastContactDate(payload.lastContactDate());
 
-        Address legal = this.findAddress(payload.legalAddressId());
-        newClient.setLegalAddress(legal);
+        newClient.setLegalAddress(this.buildAddress(payload.legalAddress()));
 
-        if (payload.operationalAddressId() != null) {
-            Address operational = this.findAddress(payload.operationalAddressId());
-            newClient.setOperationalAddress(operational);
+        if (payload.operationalAddress() != null) {
+            newClient.setOperationalAddress(this.buildAddress(payload.operationalAddress()));
         } else {
-            newClient.setOperationalAddress(legal);
+            // Nessuna sede operativa indicata: si presume coincida con la
+            // sede legale. Address non può più essere condiviso tra due
+            // "ruoli" (LEGAL/OPERATIONAL) sullo stesso record, quindi si
+            // duplicano i dati in una riga a parte.
+            newClient.setOperationalAddress(this.buildAddress(payload.legalAddress()));
         }
 
         if (currentUser.getRole() == Roles.COMMERCIALE) {
@@ -53,6 +53,16 @@ public class ClientsService {
         }
 
         return this.clientsRepository.save(newClient);
+    }
+
+    private Address buildAddress(AddressDTO dto) {
+        return Address.builder()
+                .street(dto.street())
+                .buildingNumber(dto.buildingNumber())
+                .city(dto.city())
+                .province(dto.province().toUpperCase())
+                .postalCode(dto.postalCode())
+                .build();
     }
 
     // findById ritorna un Optional<Client> (potrebbe esserci o no). orElseThrow significa "dammi il cliente, oppure lancia NotFoundException" → HTTP 404. Identico a
@@ -66,11 +76,6 @@ public class ClientsService {
         if (size > 100) size = 100;
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
         return this.clientsRepository.findAll(pageable);
-    }
-
-    // metodo che trasforma un id in un Address
-    private Address findAddress(Long addressId) {
-        return this.addressesRepository.findById(addressId).orElseThrow(() -> new NotFoundException(addressId));
     }
 
     public Client findByIdAndUpdate(long clientId, NewClientDTO payload, User currentUser) {
@@ -93,12 +98,11 @@ public class ClientsService {
         clientFromDB.setCompanyType(payload.companyType());
         clientFromDB.setLastContactDate(payload.lastContactDate());
 
-        Address legale = this.findAddress(payload.legalAddressId());
-        clientFromDB.setLegalAddress(legale);
+        clientFromDB.setLegalAddress(this.buildAddress(payload.legalAddress()));
         clientFromDB.setOperationalAddress(
-                payload.operationalAddressId() != null
-                        ? this.findAddress(payload.operationalAddressId())
-                        : legale);
+                payload.operationalAddress() != null
+                        ? this.buildAddress(payload.operationalAddress())
+                        : this.buildAddress(payload.legalAddress()));
 
         return this.clientsRepository.save(clientFromDB);
     }
