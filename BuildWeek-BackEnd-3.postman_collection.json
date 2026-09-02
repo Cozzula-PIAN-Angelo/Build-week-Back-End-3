@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "BuildWeek Back-End 3 - CRM EPIC ENERGY",
-		"description": "Auth + Users + Addresses + Clients + Notes.\n\nFlusso suggerito:\n1. Auth > Register admin / Register user\n2. Auth > Login admin (salva {{accessToken}} in automatico)\n3. Addresses > Create address (salva {{addressId}})\n4. Clients > Create client (usa {{addressId}} come legalAddressId, salva {{clientId}})\n5. Notes > Create note (usa {{clientId}}, salva {{noteId}})\n\nATTENZIONE - bug noto (2026-09-01): gli endpoint con @PreAuthorize basato su ruolo (Users: tutti tranne /me; Addresses: POST/PUT/DELETE) rispondono sempre 403, chiunque sia loggato e qualunque ruolo abbia, perche' User.getAuthorities() ritorna sempre una lista vuota. Finche' non e' corretto, quegli endpoint non sono testabili da qui. Gli endpoint di Note NON usano @PreAuthorize (controllo di ruolo fatto a mano nel service), quindi non sono affetti da questo bug.\n\nVariabili di collection:\n- baseUrl: http://localhost:2462\n- accessToken: lo setta il login\n- userId / tempUserId: id utente per testare GET/PUT/PATCH/DELETE\n- addressId: id indirizzo creato con Addresses > Create address\n- clientId: id cliente creato con Clients > Create client\n- noteId: id nota creata con Notes > Create note",
+		"description": "Auth + Users + Clients + Addresses + Notes.\n\nFlusso suggerito:\n1. Auth > Register admin, poi Auth > Login admin (salva {{accessToken}})\n2. Auth > Register commerciale (salva {{commercialeUserId}})\n3. Users > Assign role (porta {{commercialeUserId}} a COMMERCIALE) - richiede il token ADMIN\n4. Auth > Login commerciale (sovrascrive {{accessToken}} con il token del commerciale)\n5. Clients > Create client (chi crea come COMMERCIALE diventa automaticamente il referente assegnato; salva {{clientId}}, {{addressId}} = id della sede legale, {{operationalAddressId}} = id della sede operativa)\n6. Notes > Create note (consentito solo al COMMERCIALE referente o a un ADMIN)\n\nRicorda di rifare il login (Auth > Login admin / Login commerciale) ogni volta che serve cambiare il ruolo con cui chiami le richieste successive: {{accessToken}} è condiviso da tutta la collection.\n\nNote sul modello dati (dopo il refactor Address/Client):\n- Un Address non esiste senza un Client: non ci sono più endpoint per crearlo/eliminarlo da solo. legalAddress e operationalAddress si passano annidati dentro il body di Clients > Create/Update client.\n- Se operationalAddress non viene passato, il service duplica i dati di legalAddress in una riga a parte (i due indirizzi restano righe distinte anche se coincidono).\n- Il modulo Fatture (Invoice/InvoiceStatus) ha solo entità/repository/service al momento: nessun controller REST ancora, quindi non è testabile da qui.\n\nVariabili di collection:\n- baseUrl: http://localhost:2462\n- accessToken: lo setta l'ultimo login eseguito\n- adminUserId / commercialeUserId / tempUserId: id utente per Users e per il flusso Assign role\n- clientId: id cliente creato con Clients > Create client\n- addressId: id della sede legale del cliente creato\n- operationalAddressId: id della sede operativa del cliente creato\n- noteId: id nota creata con Notes > Create note",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -15,34 +15,15 @@
 		]
 	},
 	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:2462"
-		},
-		{
-			"key": "accessToken",
-			"value": ""
-		},
-		{
-			"key": "userId",
-			"value": "1"
-		},
-		{
-			"key": "tempUserId",
-			"value": "3"
-		},
-		{
-			"key": "addressId",
-			"value": ""
-		},
-		{
-			"key": "clientId",
-			"value": ""
-		},
-		{
-			"key": "noteId",
-			"value": ""
-		}
+		{ "key": "baseUrl", "value": "http://localhost:2462" },
+		{ "key": "accessToken", "value": "" },
+		{ "key": "adminUserId", "value": "" },
+		{ "key": "commercialeUserId", "value": "" },
+		{ "key": "tempUserId", "value": "" },
+		{ "key": "clientId", "value": "" },
+		{ "key": "addressId", "value": "" },
+		{ "key": "operationalAddressId", "value": "" },
+		{ "key": "noteId", "value": "" }
 	],
 	"item": [
 		{
@@ -59,43 +40,29 @@
 									"if (pm.response.code === 201) {",
 									"    var json = pm.response.json();",
 									"    pm.collectionVariables.set(\"adminUserId\", json.userId);",
-									"    pm.collectionVariables.set(\"userId\", json.userId);",
 									"}"
 								]
 							}
 						}
 					],
 					"request": {
-						"auth": {
-							"type": "noauth"
-						},
+						"auth": { "type": "noauth" },
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"name\": \"Mario\",\n  \"surname\": \"Rossi\",\n  \"email\": \"admin@test.com\",\n  \"password\": \"admin123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"auth",
-								"register"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
 						},
-						"description": "Crea l'utente. Risponde 201 { \"userId\": N }. Il ruolo di default e' USER; per portarlo ad ADMIN/COMMERCIALE serve Users > Assign role, che al momento e' bloccato dal bug sulle authorities (vedi descrizione della collection)."
+						"description": "Risponde 201 { \"userId\": N }. Il ruolo di default è USER. Per usarlo come ADMIN, promuovilo a mano nel DB (bootstrap del primo admin: nessun utente può assegnarsi ADMIN da solo, e Assign role richiede già un ADMIN)."
 					}
 				},
 				{
-					"name": "Register - user",
+					"name": "Register - commerciale",
 					"event": [
 						{
 							"listen": "test",
@@ -104,38 +71,26 @@
 								"exec": [
 									"if (pm.response.code === 201) {",
 									"    var json = pm.response.json();",
-									"    pm.collectionVariables.set(\"normalUserId\", json.userId);",
+									"    pm.collectionVariables.set(\"commercialeUserId\", json.userId);",
 									"}"
 								]
 							}
 						}
 					],
 					"request": {
-						"auth": {
-							"type": "noauth"
-						},
+						"auth": { "type": "noauth" },
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Luigi\",\n  \"surname\": \"Bianchi\",\n  \"email\": \"user@test.com\",\n  \"password\": \"user123\"\n}"
+							"raw": "{\n  \"name\": \"Luigi\",\n  \"surname\": \"Bianchi\",\n  \"email\": \"commerciale@test.com\",\n  \"password\": \"commerciale123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"auth",
-								"register"
-							]
-						}
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Utente da promuovere a COMMERCIALE con Users > Assign role, per testare il flusso di creazione Client/Note come referente."
 					}
 				},
 				{
@@ -155,31 +110,19 @@
 						}
 					],
 					"request": {
-						"auth": {
-							"type": "noauth"
-						},
+						"auth": { "type": "noauth" },
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"name\": \"Temp\",\n  \"surname\": \"Deleteme\",\n  \"email\": \"temp@test.com\",\n  \"password\": \"temp123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/auth/register",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"auth",
-								"register"
-							]
-						}
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Utente usabile con Users > Delete by id, per non eliminare admin/commerciale usati nel resto della collection."
 					}
 				},
 				{
@@ -199,36 +142,23 @@
 						}
 					],
 					"request": {
-						"auth": {
-							"type": "noauth"
-						},
+						"auth": { "type": "noauth" },
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"email\": \"admin@test.com\",\n  \"password\": \"admin123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"auth",
-								"login"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
 						},
-						"description": "Risponde { \"accessToken\": \"...\" }. Lo script salva il token in {{accessToken}}, usato da tutte le altre richieste della collection."
+						"description": "Risponde { \"accessToken\": \"...\" }. Lo script salva il token in {{accessToken}}, usato (via Bearer a livello di collection) da tutte le altre richieste."
 					}
 				},
 				{
-					"name": "Login - user",
+					"name": "Login - commerciale",
 					"event": [
 						{
 							"listen": "test",
@@ -244,37 +174,26 @@
 						}
 					],
 					"request": {
-						"auth": {
-							"type": "noauth"
-						},
+						"auth": { "type": "noauth" },
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"user@test.com\",\n  \"password\": \"user123\"\n}"
+							"raw": "{\n  \"email\": \"commerciale@test.com\",\n  \"password\": \"commerciale123\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/auth/login",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"auth",
-								"login"
-							]
-						}
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Sovrascrive {{accessToken}} con il token del commerciale. Usalo prima di Clients > Create client / Notes, per testare il flusso da referente."
 					}
 				}
 			]
 		},
 		{
 			"name": "Users",
+			"description": "Tutti gli endpoint richiedono ADMIN (@PreAuthorize hasRole), tranne /me.",
 			"item": [
 				{
 					"name": "Get all users",
@@ -283,15 +202,10 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/users",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"users"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users"]
 						},
-						"description": "Richiede ADMIN (@PreAuthorize hasRole). Bug noto: risponde sempre 403 finche' User.getAuthorities() non e' corretto."
+						"description": "Richiede ADMIN."
 					}
 				},
 				{
@@ -301,14 +215,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/users/me",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"users",
-								"me"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "me"]
 						},
 						"description": "Nessuna restrizione di ruolo: funziona per qualunque utente autenticato."
 					}
@@ -319,74 +227,45 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/users/{{userId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"users",
-								"{{userId}}"
-							]
+							"raw": "{{baseUrl}}/api/users/{{commercialeUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "{{commercialeUserId}}"]
 						},
-						"description": "Richiede ADMIN. Bug noto: risponde sempre 403."
+						"description": "Richiede ADMIN."
 					}
 				},
 				{
 					"name": "Update user by id",
 					"request": {
 						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Luigi\",\n  \"surname\": \"Neri\",\n  \"email\": \"user@test.com\",\n  \"password\": \"user123\"\n}"
+							"raw": "{\n  \"name\": \"Luigi\",\n  \"surname\": \"Neri\",\n  \"email\": \"commerciale@test.com\",\n  \"password\": \"commerciale123\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/users/{{userId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"users",
-								"{{userId}}"
-							]
+							"raw": "{{baseUrl}}/api/users/{{commercialeUserId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "{{commercialeUserId}}"]
 						},
-						"description": "Richiede ADMIN. Bug noto: risponde sempre 403."
+						"description": "Richiede ADMIN."
 					}
 				},
 				{
 					"name": "Assign role",
 					"request": {
 						"method": "PATCH",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"roles\": \"COMMERCIALE\"\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/users/{{userId}}/role",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"users",
-								"{{userId}}",
-								"role"
-							]
+							"raw": "{{baseUrl}}/api/users/{{commercialeUserId}}/role",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "{{commercialeUserId}}", "role"]
 						},
-						"description": "Valori ammessi: USER, COMMERCIALE, CONTABILE, ADMIN. Richiede ADMIN. Bug noto: risponde sempre 403 - serve per testare il flusso COMMERCIALE/ADMIN delle Note, quindi finche' non e' corretto va aggirato assegnando il ruolo direttamente in DB."
+						"description": "Valori ammessi: USER, COMMERCIALE, CONTABILE, ADMIN. Richiede ADMIN (usa {{accessToken}} dell'admin: esegui Auth > Login admin prima di questa richiesta)."
 					}
 				},
 				{
@@ -396,166 +275,17 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/users/{{tempUserId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"users",
-								"{{tempUserId}}"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "{{tempUserId}}"]
 						},
-						"description": "Richiede ADMIN. Bug noto: risponde sempre 403. Usa {{tempUserId}} (l'utente temp@test.com registrato prima)."
-					}
-				}
-			]
-		},
-		{
-			"name": "Addresses",
-			"item": [
-				{
-					"name": "Create address",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    var json = pm.response.json();",
-									"    pm.collectionVariables.set(\"addressId\", json.id);",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"10\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20100\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses"
-							]
-						},
-						"description": "Richiede ADMIN o COMMERCIALE (@PreAuthorize hasAnyAuthority). Bug noto: risponde sempre 403 finche' User.getAuthorities() non e' corretto - senza questo endpoint non si puo' creare un Client (serve legalAddressId) e quindi nemmeno una Nota."
-					}
-				},
-				{
-					"name": "Get address by id",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses",
-								"{{addressId}}"
-							]
-						},
-						"description": "Nessuna restrizione di ruolo."
-					}
-				},
-				{
-					"name": "Get all addresses",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses?page=0&size=10&sortBy=id",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								},
-								{
-									"key": "sortBy",
-									"value": "id"
-								}
-							]
-						},
-						"description": "Nessuna restrizione di ruolo."
-					}
-				},
-				{
-					"name": "Update address",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"street\": \"Via Torino\",\n  \"buildingNumber\": \"20\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20121\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses",
-								"{{addressId}}"
-							]
-						},
-						"description": "Richiede ADMIN o COMMERCIALE. Bug noto: risponde sempre 403."
-					}
-				},
-				{
-					"name": "Delete address",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses",
-								"{{addressId}}"
-							]
-						},
-						"description": "Richiede ADMIN. Bug noto: risponde sempre 403. Attenzione: fallisce se l'indirizzo e' ancora in uso come sede di un Client."
+						"description": "Richiede ADMIN. Usa {{tempUserId}} (Auth > Register - temp)."
 					}
 				}
 			]
 		},
 		{
 			"name": "Clients",
+			"description": "Create: USER, COMMERCIALE o ADMIN. Update: COMMERCIALE (solo se referente assegnato) o ADMIN. Delete: solo ADMIN. Se chi crea è COMMERCIALE diventa automaticamente il referente assegnato (salesRep); se lo crea uno USER o un ADMIN, il referente resta null e va assegnato a parte.",
 			"item": [
 				{
 					"name": "Create client",
@@ -568,6 +298,8 @@
 									"if (pm.response.code === 201) {",
 									"    var json = pm.response.json();",
 									"    pm.collectionVariables.set(\"clientId\", json.id);",
+									"    if (json.legalAddress) pm.collectionVariables.set(\"addressId\", json.legalAddress.id);",
+									"    if (json.operationalAddress) pm.collectionVariables.set(\"operationalAddressId\", json.operationalAddress.id);",
 									"}"
 								]
 							}
@@ -575,27 +307,17 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"companyName\": \"Acme Srl\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"info@acme.it\",\n  \"annualRevenue\": 500000,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
+							"raw": "{\n  \"companyName\": \"Acme Srl\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"info@acme.it\",\n  \"annualRevenue\": 500000,\n  \"companyType\": \"SRL\",\n  \"legalAddress\": {\n    \"street\": \"Via Roma\",\n    \"buildingNumber\": \"10\",\n    \"city\": \"Milano\",\n    \"province\": \"MI\",\n    \"postalCode\": \"20100\"\n  },\n  \"operationalAddress\": {\n    \"street\": \"Via Torino\",\n    \"buildingNumber\": \"5\",\n    \"city\": \"Torino\",\n    \"province\": \"TO\",\n    \"postalCode\": \"10121\"\n  },\n  \"lastContactDate\": \"2026-08-15\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/clients",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "clients"]
 						},
-						"description": "Nessuna restrizione di ruolo nel controller. Se chi crea e' COMMERCIALE, diventa automaticamente il referente assegnato (salesRep) - condizione necessaria per testare Notes > Create note. legalAddressId deve essere un {{addressId}} valido (vedi Addresses > Create address)."
+						"description": "legalAddress è obbligatorio; operationalAddress e lastContactDate sono opzionali (se operationalAddress manca, il service ne crea una copia di legalAddress su una riga separata). Esegui Auth > Login commerciale prima di questa richiesta per testare l'auto-assegnazione del referente."
 					}
 				},
 				{
@@ -605,14 +327,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "clients", "{{clientId}}"]
 						}
 					}
 				},
@@ -623,26 +339,12 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/clients?page=0&size=10&sortBy=id",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients"
-							],
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "clients"],
 							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								},
-								{
-									"key": "sortBy",
-									"value": "id"
-								}
+								{ "key": "page", "value": "0" },
+								{ "key": "size", "value": "10" },
+								{ "key": "sortBy", "value": "id" }
 							]
 						}
 					}
@@ -651,27 +353,17 @@
 					"name": "Update client",
 					"request": {
 						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"companyName\": \"Acme Srl\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"contatti@acme.it\",\n  \"annualRevenue\": 600000,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
+							"raw": "{\n  \"companyName\": \"Acme Srl\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"contatti@acme.it\",\n  \"annualRevenue\": 600000,\n  \"companyType\": \"SRL\",\n  \"legalAddress\": {\n    \"street\": \"Via Roma\",\n    \"buildingNumber\": \"10\",\n    \"city\": \"Milano\",\n    \"province\": \"MI\",\n    \"postalCode\": \"20100\"\n  },\n  \"operationalAddress\": {\n    \"street\": \"Via Torino\",\n    \"buildingNumber\": \"5\",\n    \"city\": \"Torino\",\n    \"province\": \"TO\",\n    \"postalCode\": \"10121\"\n  },\n  \"lastContactDate\": \"2026-09-01\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}"
-							]
-						}
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "clients", "{{clientId}}"]
+						},
+						"description": "Richiede COMMERCIALE (solo se referente assegnato di questo cliente) o ADMIN. Ogni update ricrea legalAddress/operationalAddress da zero: non è un patch parziale, va sempre passato il body completo."
 					}
 				},
 				{
@@ -681,21 +373,70 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}"
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "clients", "{{clientId}}"]
+						},
+						"description": "Richiede ADMIN (esclusivo, a differenza di update). Fallisce con errore se il cliente ha ancora Fatture o Note collegate: eliminale prima."
+					}
+				}
+			]
+		},
+		{
+			"name": "Addresses",
+			"description": "Un Address non esiste senza un Client: niente più create/delete standalone (si creano/sostituiscono solo tramite Clients > Create/Update client). Qui restano solo lettura e update dei campi di un indirizzo già esistente. GET nessuna restrizione di ruolo; PUT richiede ADMIN o COMMERCIALE.",
+			"item": [
+				{
+					"name": "Get all addresses",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses?page=0&size=10&sortBy=id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "addresses"],
+							"query": [
+								{ "key": "page", "value": "0" },
+								{ "key": "size", "value": "10" },
+								{ "key": "sortBy", "value": "id" }
 							]
 						}
+					}
+				},
+				{
+					"name": "Get address by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "addresses", "{{addressId}}"]
+						},
+						"description": "Usa {{addressId}} (sede legale del cliente creato con Clients > Create client)."
+					}
+				},
+				{
+					"name": "Update address by id",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"12\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20121\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "addresses", "{{addressId}}"]
+						},
+						"description": "Aggiorna solo i campi dell'indirizzo (via, città, ecc.): client e address_type restano quelli originali, non modificabili da qui."
 					}
 				}
 			]
 		},
 		{
 			"name": "Notes",
+			"description": "Create/Read/Update/Delete: consentiti solo ad ADMIN, oppure a COMMERCIALE se è il referente assegnato del cliente della nota. USER e CONTABILE non hanno mai accesso, in nessuna operazione. Controllo fatto a mano nel service (non @PreAuthorize), autore e cliente non arrivano mai dal body: autore = utente autenticato (JWT), cliente = path dell'URL.",
 			"item": [
 				{
 					"name": "Create note",
@@ -715,29 +456,17 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"text\": \"Cliente interessato a un rinnovo contrattuale entro fine anno\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}",
-								"notes"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "clients", "{{clientId}}", "notes"]
 						},
-						"description": "Consentito solo ad ADMIN, oppure a COMMERCIALE se e' il referente assegnato del cliente {{clientId}} (vedi Clients > Create client). Controllo fatto a mano nel service, non con @PreAuthorize: non affetto dal bug sulle authorities."
+						"description": "Funziona se sei loggato come ADMIN, oppure come il COMMERCIALE che è referente di {{clientId}} (vedi Clients > Create client)."
 					}
 				},
 				{
@@ -747,15 +476,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}",
-								"notes"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "clients", "{{clientId}}", "notes"]
 						}
 					}
 				},
@@ -766,14 +488,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"notes",
-								"{{noteId}}"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notes", "{{noteId}}"]
 						}
 					}
 				},
@@ -781,26 +497,15 @@
 					"name": "Update note",
 					"request": {
 						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n  \"text\": \"Cliente ha confermato il rinnovo, procedere con il contratto\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"notes",
-								"{{noteId}}"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notes", "{{noteId}}"]
 						}
 					}
 				},
@@ -811,509 +516,8 @@
 						"header": [],
 						"url": {
 							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"notes",
-								"{{noteId}}"
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Addresses",
-			"description": "Crear/editar requiere rol ADMIN o COMMERCIALE. Borrar requiere ADMIN. GET no requiere rol especifico (solo estar autenticado).",
-			"item": [
-				{
-					"name": "Create address (legal)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    var json = pm.response.json();",
-									"    pm.collectionVariables.set(\"addressId\", json.id);",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"10\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20100\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses"
-							]
-						},
-						"description": "Responde 201 con el indirizzo creado. El script guarda el id en {{addressId}} (para usarlo como legalAddressId en Clients > Create client)."
-					}
-				},
-				{
-					"name": "Create address (temp, para borrar)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    var json = pm.response.json();",
-									"    pm.collectionVariables.set(\"tempAddressId\", json.id);",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"street\": \"Via Temp\",\n  \"buildingNumber\": \"1\",\n  \"city\": \"Torino\",\n  \"province\": \"TO\",\n  \"postalCode\": \"10100\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses"
-							]
-						}
-					}
-				},
-				{
-					"name": "Get all addresses",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses?page=0&size=10&sortBy=id",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								},
-								{
-									"key": "sortBy",
-									"value": "id"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get address by id",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses",
-								"{{addressId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Update address by id",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"12\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20121\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses",
-								"{{addressId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Delete address by id",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses/{{tempAddressId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"addresses",
-								"{{tempAddressId}}"
-							]
-						},
-						"description": "Responde 204. Usa {{tempAddressId}} (el indirizzo temp creado antes) para no romper el legalAddressId usado por Clients."
-					}
-				}
-			]
-		},
-		{
-			"name": "Clients",
-			"description": "Requiere estar autenticado (cualquier rol). legalAddressId debe ser el id de un Address existente (ver Addresses > Create address).",
-			"item": [
-				{
-					"name": "Create client",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    var json = pm.response.json();",
-									"    pm.collectionVariables.set(\"clientId\", json.id);",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"companyName\": \"Acme SRL\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"info@acme.com\",\n  \"annualRevenue\": 250000.00,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/clients",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients"
-							]
-						},
-						"description": "Responde 201 con el Client creado (referente commerciale = usuario autenticado). companyType admite: PA, SAS, SPA, SRL. El script guarda el id en {{clientId}}."
-					}
-				},
-				{
-					"name": "Create client (temp, para borrar)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    var json = pm.response.json();",
-									"    pm.collectionVariables.set(\"tempClientId\", json.id);",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"companyName\": \"Temp SRL\",\n  \"vatNumber\": \"98765432109\",\n  \"email\": \"info@temp.com\",\n  \"annualRevenue\": 0,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/clients",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients"
-							]
-						}
-					}
-				},
-				{
-					"name": "Get all clients",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/clients?page=0&size=10&sortBy=id",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients"
-							],
-							"query": [
-								{
-									"key": "page",
-									"value": "0"
-								},
-								{
-									"key": "size",
-									"value": "10"
-								},
-								{
-									"key": "sortBy",
-									"value": "id"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get client by id",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Update client by id",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"companyName\": \"Acme SRL\",\n  \"vatNumber\": \"12345678901\",\n  \"email\": \"contact@acme.com\",\n  \"annualRevenue\": 300000.00,\n  \"companyType\": \"SRL\",\n  \"legalAddressId\": {{addressId}},\n  \"operationalAddressId\": null\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/clients/{{clientId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Delete client by id",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/clients/{{tempClientId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{tempClientId}}"
-							]
-						},
-						"description": "Responde 204. Usa {{tempClientId}} (el Client temp creado antes) para no romper el clientId usado por Notes."
-					}
-				}
-			]
-		},
-		{
-			"name": "Notes",
-			"description": "Crear/editar/borrar requiere ser ADMIN o el COMMERCIALE referente del cliente indicado en el path. El autor y el cliente nunca se leen del body: el autor es siempre el usuario autenticado (JWT), el cliente viene del path.",
-			"item": [
-				{
-					"name": "Create note",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"type": "text/javascript",
-								"exec": [
-									"if (pm.response.code === 201) {",
-									"    var json = pm.response.json();",
-									"    pm.collectionVariables.set(\"noteId\", json.id);",
-									"}"
-								]
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"text\": \"Cliente interessato a un rinnovo contrattuale entro fine anno\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}",
-								"notes"
-							]
-						},
-						"description": "Responde 201 con la nota creada. El script guarda el id en {{noteId}}."
-					}
-				},
-				{
-					"name": "Get notes by client",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/clients/{{clientId}}/notes",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"clients",
-								"{{clientId}}",
-								"notes"
-							]
-						}
-					}
-				},
-				{
-					"name": "Get note by id",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"notes",
-								"{{noteId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Update note by id",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"text\": \"Cliente interessato a un rinnovo contrattuale entro fine anno - aggiornamento dopo call\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"notes",
-								"{{noteId}}"
-							]
-						}
-					}
-				},
-				{
-					"name": "Delete note by id",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{baseUrl}}/api/notes/{{noteId}}",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"notes",
-								"{{noteId}}"
-							]
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notes", "{{noteId}}"]
 						}
 					}
 				}

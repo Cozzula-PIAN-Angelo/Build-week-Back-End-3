@@ -1,5 +1,6 @@
 package com.epicode.buildweekbackend3.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -36,8 +37,12 @@ public class Address extends BaseEntity {
     private String postalCode;
 
     // created_at/updated_at ora arrivano da BaseEntity (audit centralizzato).
+    // @JsonIgnore: senza, Client -> addresses -> Address.client -> addresses -> ...
+    // va in ricorsione infinita in serializzazione (Client viene esposto
+    // direttamente dal controller, non tramite DTO).
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id", nullable = false)
+    @JsonIgnore
     private Client client;
 
     @Enumerated(EnumType.STRING)
