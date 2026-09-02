@@ -90,13 +90,16 @@ public class User implements UserDetails {
 
     // UserDetails
 
+    // Ritorna sia il nome nudo del ruolo (per hasAuthority/hasAnyAuthority,
+    // usati es. in AddressesController) sia la versione con prefisso ROLE_
+    // (per hasRole, usato es. in UsersController): senza questo, i controlli
+    // di autorizzazione basati su @PreAuthorize fallivano sempre, per
+    // qualunque ruolo.
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // ROLE_<role> per @PreAuthorize("hasRole(...)"), <role> senza prefisso
-        // per hasAuthority(...)/hasAnyAuthority(...), usati entrambi nel progetto.
         return List.of(
-                new SimpleGrantedAuthority("ROLE_" + role.name()),
-                new SimpleGrantedAuthority(role.name())
+                new SimpleGrantedAuthority(role.name()),
+                new SimpleGrantedAuthority("ROLE_" + role.name())
         );
     }
 
