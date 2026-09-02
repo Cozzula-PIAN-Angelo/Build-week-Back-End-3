@@ -76,15 +76,15 @@ public class ClientsService {
     public Client findByIdAndUpdate(long clientId, NewClientDTO payload, User currentUser) {
         Client clientFromDB = this.findById(clientId);
 
-        if(currentUser.getRole() == Roles.COMMERCIALE) {
-            if (clientFromDB.getSalesRep() != null) {
-                throw new ForbiddenException("Non sei autorizzato a modificare questo Cliente");
-            }
-        }
+        this.checkCanManage(clientFromDB, currentUser);
 
         if (!clientFromDB.getVatNumber().equals(payload.vatNumber())
                 && this.clientsRepository.existsByVatNumber(payload.vatNumber()))
             throw new ValidationException("La partita IVA " + payload.vatNumber() + " è già in uso");
+
+        if (currentUser.getRole() != Roles.ADMIN && clientFromDB.getCompanyType() != payload.companyType()) {
+            throw new ForbiddenException("Solo un ADMIN può modificare il tipo societario.");
+        }
 
         clientFromDB.setCompanyName(payload.companyName());
         clientFromDB.setVatNumber(payload.vatNumber());
@@ -104,8 +104,21 @@ public class ClientsService {
     }
 
     // void perché non c'è niente da restituire
-    public void findByIdAndDelete(long clientId) {
+    public void findByIdAndDelete(long clientId, User currentUser) {
         Client clientFromDB = this.findById(clientId);
+        this.checkCanManage(clientFromDB, currentUser); // rete di sicurezza se un domani qualcuno allenta l'annotazione, e per coerenza con update.
         this.clientsRepository.delete(clientFromDB);
+    }
+
+    private void checkCanManage(Client client, User currentUser) {
+        if (currentUser.getRole() == Roles.ADMIN) return;
+
+        if (currentUser.getRole() == Roles.COMMERCIALE
+                && client.getSalesRep() != null
+                && client.getSalesRep().getId().equals(currentUser.getId())) {
+            return;
+        }
+
+        throw new ForbiddenException("Non sei il referente di questo cliente");
     }
 }
