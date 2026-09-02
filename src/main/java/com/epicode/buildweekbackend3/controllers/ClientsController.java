@@ -7,6 +7,7 @@ import com.epicode.buildweekbackend3.services.ClientsService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +21,7 @@ public class ClientsController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('USER', 'COMMERCIALE', 'ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     public Client create(@RequestBody @Valid NewClientDTO payload,
                          @AuthenticationPrincipal User currentUser) {
@@ -39,11 +41,13 @@ public class ClientsController {
     }
 
     @PutMapping("/{clientId}")
-    public Client update(@PathVariable long clientId, @RequestBody @Valid NewClientDTO payload) {
-        return this.clientsService.findByIdAndUpdate(clientId, payload);
+    @PreAuthorize("hasAnyRole('COMMERCIALE', 'ADMIN')")
+    public Client update(@PathVariable long clientId, @RequestBody @Valid NewClientDTO payload, @AuthenticationPrincipal User currentUser) {
+        return this.clientsService.findByIdAndUpdate(clientId, payload,  currentUser);
     }
 
     @DeleteMapping("/{clientId}")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long clientId) {
         this.clientsService.findByIdAndDelete(clientId);

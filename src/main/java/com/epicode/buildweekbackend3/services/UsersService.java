@@ -42,7 +42,7 @@ public class UsersService {
         userFromDB.setName(payload.name());
         userFromDB.setSurname(payload.surname());
         userFromDB.setEmail(payload.email());
-        userFromDB.setPassword(bcrypt.encode(payload.password()));
+        userFromDB.setPasswordHash(bcrypt.encode(payload.password()));
 
         return this.usersRepository.save(userFromDB);
     }

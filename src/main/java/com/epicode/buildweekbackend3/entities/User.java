@@ -18,12 +18,12 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    @Column(name = "password_hash", nullable = false)
     @JsonIgnore
-    private String password;
+    private String passwordHash;
 
     @Column(nullable = false)
     private String name;
@@ -39,9 +39,9 @@ public class User implements UserDetails {
 
     }
 
-    public User(String email, String password, String name, String surname) {
+    public User(String email, String passwordHash, String name, String surname) {
         this.email = email;
-        this.password = password;
+        this.passwordHash = passwordHash;
         this.name = name;
         this.surname = surname;
         this.role = Roles.USER;
@@ -75,8 +75,8 @@ public class User implements UserDetails {
         this.email = email;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
     public Roles getRole() {
@@ -105,7 +105,7 @@ public class User implements UserDetails {
 
     @Override
     public String getPassword() {
-        return password;
+        return passwordHash;
     }
 
     @Override
@@ -119,7 +119,7 @@ public class User implements UserDetails {
         return "User{" +
                 "email='" + email + '\'' +
                 ", id=" + id +
-                ", password='" + password + '\'' +
+                ", passwordHash='" + passwordHash + '\'' +
                 ", name='" + name + '\'' +
                 ", surname='" + surname + '\'' +
                 ", role=" + role +

@@ -1,6 +1,7 @@
 package com.epicode.buildweekbackend3.payloads;
 
 import com.epicode.buildweekbackend3.entities.CompanyType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
@@ -23,8 +24,10 @@ public record NewClientDTO(
         CompanyType companyType,
 
         @NotNull(message = "L'indirizzo legale è obbligatorio")
-        Long legalAddressId,
+        @Valid
+        AddressDTO legalAddress,
 
-        Long operationalAddressId
+        @Valid
+        AddressDTO operationalAddress
 ) {
 }
