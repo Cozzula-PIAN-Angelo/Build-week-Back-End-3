@@ -4,6 +4,7 @@ import com.epicode.buildweekbackend3.entities.CompanyType;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record NewClientDTO(
         @NotBlank(message = "Il nome dell'azienda è obbligatorio")
@@ -25,6 +26,9 @@ public record NewClientDTO(
         @NotNull(message = "L'indirizzo legale è obbligatorio")
         Long legalAddressId,
 
-        Long operationalAddressId
+        Long operationalAddressId,
+
+        @PastOrPresent(message = "La data dell'ultimo contatto non può essere nel futuro.")
+        LocalDate lastContactDate
 ) {
 }
