@@ -2,6 +2,7 @@ package com.epicode.buildweekbackend3.exceptions;
 
 import com.epicode.buildweekbackend3.payloads.ErrorResponseDTO;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -36,6 +37,13 @@ public class ExceptionsHandler {
                 .map(err -> err.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         return new ErrorResponseDTO(message, LocalDateTime.now());
+    }
+
+    // 400 - JSON con sintassi rotta, un campo con tipo sbagliato, un valore enum inesistente.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponseDTO handleNotReadable(HttpMessageNotReadableException ex) {
+        return new ErrorResponseDTO("Corpo della richiesta non valido o malformato.", LocalDateTime.now());
     }
 
     // 401 - token JWT mancante, scaduto o non valido.

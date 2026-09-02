@@ -1,12 +1,19 @@
 package com.epicode.buildweekbackend3.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
-
 @Entity
-@Table(name = "addresses")
+@Table(
+        name = "addresses",
+        indexes = {
+                @Index(name = "idx_addresses_client_id", columnList = "client_id")
+        },
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_addresses_client_type", columnNames = {"client_id", "address_type"})
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,27 +30,22 @@ public class Address extends BaseEntity {
     @Column(nullable = false)
     private String city;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 2)
     private String province;
 
-    @Column(name = "postal_code", nullable = false)
+    @Column(name = "postal_code", nullable = false, length = 5)
     private String postalCode;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
+    // created_at/updated_at ora arrivano da BaseEntity (audit centralizzato).
+    // @JsonIgnore: senza, Client -> addresses -> Address.client -> addresses -> ...
+    // va in ricorsione infinita in serializzazione (Client viene esposto
+    // direttamente dal controller, non tramite DTO).
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id", nullable = false)
+    @JsonIgnore
+    private Client client;
 
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    public void onPrePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    public void onPreUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
+    @Enumerated(EnumType.STRING)
+    @Column(name = "address_type", nullable = false, length = 20)
+    private AddressType addressType;
 }
