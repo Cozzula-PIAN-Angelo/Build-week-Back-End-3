@@ -4,6 +4,7 @@ import com.epicode.buildweekbackend3.entities.Address;
 import com.epicode.buildweekbackend3.entities.Client;
 import com.epicode.buildweekbackend3.entities.Roles;
 import com.epicode.buildweekbackend3.entities.User;
+import com.epicode.buildweekbackend3.exceptions.ForbiddenException;
 import com.epicode.buildweekbackend3.exceptions.NotFoundException;
 import com.epicode.buildweekbackend3.exceptions.ValidationException;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
@@ -71,8 +72,14 @@ public class ClientsService {
         return this.addressesRepository.findById(addressId).orElseThrow(() -> new NotFoundException(addressId));
     }
 
-    public Client findByIdAndUpdate(long clientId, NewClientDTO payload) {
+    public Client findByIdAndUpdate(long clientId, NewClientDTO payload, User currentUser) {
         Client clientFromDB = this.findById(clientId);
+
+        if(currentUser.getRole() == Roles.COMMERCIALE) {
+            if (clientFromDB.getSalesRep() != null) {
+                throw new ForbiddenException("Non sei autorizzato a modificare questo Cliente");
+            }
+        }
 
         if (!clientFromDB.getVatNumber().equals(payload.vatNumber())
                 && this.clientsRepository.existsByVatNumber(payload.vatNumber()))
