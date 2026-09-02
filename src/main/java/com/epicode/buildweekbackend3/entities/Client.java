@@ -26,6 +26,7 @@ public class Client extends BaseEntity {
     private String vatNumber;
 
     @Email(message = "E-mail non valida.")
+    @Column(unique = true)
     private String email;
 
     @PositiveOrZero
