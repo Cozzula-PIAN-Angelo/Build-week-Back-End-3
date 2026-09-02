@@ -10,6 +10,8 @@ import com.epicode.buildweekbackend3.exceptions.ValidationException;
 import com.epicode.buildweekbackend3.payloads.AddressDTO;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
 import com.epicode.buildweekbackend3.repositories.ClientsRepository;
+import com.epicode.buildweekbackend3.repositories.InvoicesRepository;
+import com.epicode.buildweekbackend3.repositories.NotesRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -20,9 +22,13 @@ import org.springframework.stereotype.Service;
 public class ClientsService {
 
     private final ClientsRepository clientsRepository; // per salvare/leggere clienti
+    private final NotesRepository notesRepository;
+    private final InvoicesRepository invoicesRepository;
 
-    public ClientsService(ClientsRepository clientsRepository) {
+    public ClientsService(ClientsRepository clientsRepository, NotesRepository notesRepository, InvoicesRepository invoicesRepository) {
         this.clientsRepository = clientsRepository;
+        this.notesRepository = notesRepository;
+        this.invoicesRepository = invoicesRepository;
     }
 
     public Client create(NewClientDTO payload, User currentUser) {
@@ -111,6 +117,10 @@ public class ClientsService {
     public void findByIdAndDelete(long clientId, User currentUser) {
         Client clientFromDB = this.findById(clientId);
         this.checkCanManage(clientFromDB, currentUser); // rete di sicurezza se un domani qualcuno allenta l'annotazione, e per coerenza con update.
+
+        if (this.notesRepository.existsByClientId(clientId) || this.invoicesRepository.existsByClientId(clientId)) {
+            throw new ValidationException("Impossibile eliminare il cliente: ci sono note o fatture collegate."); // errore 400
+        }
         this.clientsRepository.delete(clientFromDB);
     }
 

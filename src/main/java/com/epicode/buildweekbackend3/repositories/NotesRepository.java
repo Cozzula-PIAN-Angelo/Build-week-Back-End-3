@@ -11,4 +11,6 @@ public interface NotesRepository extends JpaRepository<Note, Long> {
     // (naviga la relazione Note.client.id anche se il campo si chiama solo
     // "client" e non "clientId").
     List<Note> findByClientId(long clientId);
+
+    boolean existsByClientId(long clientId);
 }
