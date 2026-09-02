@@ -1,5 +1,6 @@
 package com.epicode.buildweekbackend3.security;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -9,12 +10,15 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Configuration
@@ -34,9 +38,36 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .anyRequest().authenticated());
 
+        httpSecurity.exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authenticationEntryPoint())
+                .accessDeniedHandler(accessDeniedHandler()));
+
         httpSecurity.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return httpSecurity.build();
+    }
+
+    // 401 - richiesta non autenticata (token mancante, non valido o scaduto)
+    private AuthenticationEntryPoint authenticationEntryPoint() {
+        return (request, response, authException) ->
+                writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
+                        "Autenticazione richiesta: token mancante o non valido");
+    }
+
+    // 403 - utente autenticato ma senza i permessi necessari
+    private AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, accessDeniedException) ->
+                writeError(response, HttpServletResponse.SC_FORBIDDEN,
+                        "Non hai i permessi per accedere a questa risorsa");
+    }
+
+    private void writeError(HttpServletResponse response, int status, String message) throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        String body = "{\"message\":\"" + message.replace("\"", "\\\"")
+                + "\",\"timestamp\":\"" + LocalDateTime.now() + "\"}";
+        response.getWriter().write(body);
     }
 
     @Bean
