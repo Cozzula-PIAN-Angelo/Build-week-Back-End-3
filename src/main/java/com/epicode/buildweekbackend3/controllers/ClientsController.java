@@ -49,7 +49,7 @@ public class ClientsController {
     @DeleteMapping("/{clientId}")
     @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable long clientId) {
-        this.clientsService.findByIdAndDelete(clientId);
+    public void delete(@PathVariable long clientId, @AuthenticationPrincipal User currentUser) {
+        this.clientsService.findByIdAndDelete(clientId, currentUser);
     }
 }
