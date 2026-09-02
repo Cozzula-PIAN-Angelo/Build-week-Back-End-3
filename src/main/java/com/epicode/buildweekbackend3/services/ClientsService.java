@@ -34,6 +34,7 @@ public class ClientsService {
         Client newClient = new Client(payload.companyName(), payload.vatNumber(), payload.companyType());
         newClient.setEmail(payload.email());
         newClient.setAnnualRevenue(payload.annualRevenue());
+        newClient.setLastContactDate(payload.lastContactDate());
 
         Address legal = this.findAddress(payload.legalAddressId());
         newClient.setLegalAddress(legal);
@@ -90,6 +91,7 @@ public class ClientsService {
         clientFromDB.setEmail(payload.email());
         clientFromDB.setAnnualRevenue(payload.annualRevenue());
         clientFromDB.setCompanyType(payload.companyType());
+        clientFromDB.setLastContactDate(payload.lastContactDate());
 
         Address legale = this.findAddress(payload.legalAddressId());
         clientFromDB.setLegalAddress(legale);

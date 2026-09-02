@@ -7,6 +7,7 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -37,6 +38,9 @@ public class Client extends BaseEntity {
     private CompanyType companyType;
 
     private String logoUrl;
+
+    // niente @Column(nullable = false) perché deve restare opzionale
+    private LocalDate lastContactDate;
 
     @ManyToOne(fetch = FetchType.LAZY) // annotazione che definisce una relazione tra due entità nel database
     @JoinColumn(name = "sales_rep_id")
