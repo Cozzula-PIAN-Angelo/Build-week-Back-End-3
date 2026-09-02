@@ -103,7 +103,12 @@ public class User implements UserDetails {
         );
     }
 
+    // @JsonIgnore qui e non solo sul campo: Jackson tratta getPassword()
+    // come proprietà "password" (nome diverso dal campo passwordHash),
+    // quindi senza questa annotazione l'hash finirebbe comunque in
+    // risposta (es. GET /api/users).
     @Override
+    @JsonIgnore
     public String getPassword() {
         return passwordHash;
     }
