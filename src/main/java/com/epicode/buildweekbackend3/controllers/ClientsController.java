@@ -2,6 +2,7 @@ package com.epicode.buildweekbackend3.controllers;
 
 import com.epicode.buildweekbackend3.entities.Client;
 import com.epicode.buildweekbackend3.entities.User;
+import com.epicode.buildweekbackend3.payloads.ClientFilterDTO;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
 import com.epicode.buildweekbackend3.services.ClientsService;
 import jakarta.validation.Valid;
@@ -36,14 +37,14 @@ public class ClientsController {
     @GetMapping
     public Page<Client> getAll(@RequestParam(defaultValue = "0") int page,
                                @RequestParam(defaultValue = "10") int size,
-                               @RequestParam(defaultValue = "id") String sortBy) {
-        return this.clientsService.findAll(page, size, sortBy);
+                               @RequestParam(defaultValue = "id") String sortBy, ClientFilterDTO filter) {
+        return this.clientsService.findAll(page, size, sortBy, filter);
     }
 
     @PutMapping("/{clientId}")
     @PreAuthorize("hasAnyRole('COMMERCIALE', 'ADMIN')")
     public Client update(@PathVariable long clientId, @RequestBody @Valid NewClientDTO payload, @AuthenticationPrincipal User currentUser) {
-        return this.clientsService.findByIdAndUpdate(clientId, payload,  currentUser);
+        return this.clientsService.findByIdAndUpdate(clientId, payload, currentUser);
     }
 
     @DeleteMapping("/{clientId}")
