@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record NewClientDTO(
         @NotBlank(message = "Il nome dell'azienda è obbligatorio")
@@ -28,6 +29,9 @@ public record NewClientDTO(
         AddressDTO legalAddress,
 
         @Valid
-        AddressDTO operationalAddress
+        AddressDTO operationalAddress,
+
+        @PastOrPresent(message = "La data dell'ultimo contatto non può essere nel futuro.")
+        LocalDate lastContactDate
 ) {
 }

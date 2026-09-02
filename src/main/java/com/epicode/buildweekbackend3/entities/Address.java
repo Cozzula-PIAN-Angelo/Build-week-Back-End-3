@@ -3,8 +3,6 @@ package com.epicode.buildweekbackend3.entities;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
-
 @Entity
 @Table(
         name = "addresses",
@@ -37,6 +35,7 @@ public class Address extends BaseEntity {
     @Column(name = "postal_code", nullable = false, length = 5)
     private String postalCode;
 
+    // created_at/updated_at ora arrivano da BaseEntity (audit centralizzato).
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id", nullable = false)
     private Client client;
@@ -44,22 +43,4 @@ public class Address extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "address_type", nullable = false, length = 20)
     private AddressType addressType;
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    public void onPrePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    public void onPreUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 }

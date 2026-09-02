@@ -20,7 +20,7 @@ public record NoteRespDTO(
         return new NoteRespDTO(
                 note.getId(),
                 note.getText(),
-                note.getCreationDate(),
+                note.getCreatedAt(),
                 note.getAuthor().getId(),
                 note.getAuthor().getName() + " " + note.getAuthor().getSurname(),
                 note.getClient().getId()

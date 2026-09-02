@@ -1,13 +1,10 @@
 package com.epicode.buildweekbackend3.entities;
 
 import jakarta.persistence.*;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
-
-import java.time.LocalDateTime;
 
 // Nota testuale legata a un Cliente e scritta da uno User. Il controllo di
 // accesso (chi può leggerla/modificarla) si basa sul Cliente, non
@@ -26,12 +23,6 @@ public class Note extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String text;
 
-    // Niente setter: la data di creazione si valorizza solo nel costruttore
-    // e non deve poter essere sovrascritta in un update.
-    @Column(nullable = false, updatable = false)
-    @Setter(AccessLevel.NONE)
-    private LocalDateTime creationDate;
-
     // Chi ha scritto la nota. Va sempre impostato dall'utente autenticato
     // (JWT), mai da un valore passato nel body della richiesta.
     @ManyToOne(fetch = FetchType.LAZY)
@@ -48,6 +39,5 @@ public class Note extends BaseEntity {
         this.text = text;
         this.author = author;
         this.client = client;
-        this.creationDate = LocalDateTime.now();
     }
 }
