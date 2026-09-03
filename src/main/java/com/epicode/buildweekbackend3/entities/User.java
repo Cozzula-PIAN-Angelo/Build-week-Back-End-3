@@ -12,11 +12,8 @@ import java.util.List;
 
 @Entity
 @Table(name = "users")
-public class User implements UserDetails {
+public class User extends BaseEntity implements UserDetails  {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -47,9 +44,6 @@ public class User implements UserDetails {
         this.role = Roles.USER;
     }
 
-    public Long getId() {
-        return id;
-    }
 
     public String getName() {
         return name;
@@ -123,7 +117,6 @@ public class User implements UserDetails {
     public String toString() {
         return "User{" +
                 "email='" + email + '\'' +
-                ", id=" + id +
                 ", passwordHash='" + passwordHash + '\'' +
                 ", name='" + name + '\'' +
                 ", surname='" + surname + '\'' +
