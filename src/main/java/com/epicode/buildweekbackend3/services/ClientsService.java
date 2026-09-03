@@ -97,6 +97,11 @@ public class ClientsService {
                 && this.clientsRepository.existsByVatNumber(payload.vatNumber()))
             throw new ValidationException("La partita IVA " + payload.vatNumber() + " è già in uso");
 
+        if (payload.email() != null && !payload.email().isBlank()
+                && !payload.email().equalsIgnoreCase(clientFromDB.getEmail())
+                && this.clientsRepository.existsByEmail(payload.email()))
+            throw new ValidationException("L'email " + payload.email() + " è già in uso");
+
         if (currentUser.getRole() != Roles.ADMIN && clientFromDB.getCompanyType() != payload.companyType()) {
             throw new ForbiddenException("Solo un ADMIN può modificare il tipo societario.");
         }
