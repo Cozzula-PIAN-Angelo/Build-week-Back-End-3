@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
+import org.hibernate.validator.constraints.URL;
 import java.time.LocalDate;
 
 public record NewClientDTO(
@@ -32,6 +33,9 @@ public record NewClientDTO(
         AddressDTO operationalAddress,
 
         @PastOrPresent(message = "La data dell'ultimo contatto non può essere nel futuro.")
-        LocalDate lastContactDate
+        LocalDate lastContactDate,
+
+        @URL(message = "Il logo deve essere un URL valido.")
+        String logoUrl
 ) {
 }
