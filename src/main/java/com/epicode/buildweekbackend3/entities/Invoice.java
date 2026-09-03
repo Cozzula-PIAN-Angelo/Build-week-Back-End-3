@@ -11,7 +11,6 @@ import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "invoices")
@@ -44,11 +43,8 @@ public class Invoice extends BaseEntity {
     @JoinColumn(name = "client_id", nullable = false)
     private Client client;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    // createdAt/updatedAt e i callback @PrePersist/@PreUpdate arrivano da
+    // BaseEntity: ridichiararli qui mapperebbe due campi sulla stessa colonna.
 
     public Invoice(String invoiceNumber, LocalDate invoiceDate, BigDecimal amount,
                    InvoiceStatus status, Client client) {
@@ -57,17 +53,5 @@ public class Invoice extends BaseEntity {
         this.amount = amount;
         this.status = status;
         this.client = client;
-    }
-
-    @PrePersist
-    public void onPrePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    public void onPreUpdate() {
-        this.updatedAt = LocalDateTime.now();
     }
 }
