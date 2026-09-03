@@ -83,6 +83,10 @@ public class InvoiceStatusesService {
         this.invoiceStatusesRepository.findAll()
                 .forEach(other -> other.getAllowedTransitions().remove(statusFromDB));
 
+        this.invoiceStatusesRepository.flush(); // Il flush() esplicito prima della delete risolve il rischio
+        // di violazione FK sul lato to_status_id: le DELETE sulla join-table degli altri stati vengono eseguite subito,
+        // prima della cancellazione dell'entità.
+
         this.invoiceStatusesRepository.delete(statusFromDB);
     }
 
