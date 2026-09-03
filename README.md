@@ -112,6 +112,128 @@ di un Client). Questo filtro è applicato lato service, mai lato controller.
 }
 ```
 
+## Modulo Clienti
+
+Un Client rappresenta un'azienda cliente di EPIC ENERGY SERVICES. Ogni Client ha
+un indirizzo legale e uno operativo (entità `Address`, annidate nel payload), un
+eventuale referente commerciale (`salesRep` → User) e una lista di Note e Fatture
+collegate.
+
+### Regole di autorizzazione
+
+| Operazione | USER | COMMERCIALE | CONTABILE | ADMIN |
+|---|:--:|:--:|:--:|:--:|
+| `POST` (creazione) | ✅ | ✅ | ❌ | ✅ |
+| `GET` (lista e dettaglio) | ✅ | ✅ | ✅ | ✅ |
+| `PUT` (modifica) | ❌ | ✅ solo se referente del cliente | ❌ | ✅ sempre |
+| `PATCH .../sales-rep` | ❌ | ❌ | ❌ | ✅ |
+| `DELETE` | ❌ | ❌ | ❌ | ✅ |
+
+Regole aggiuntive applicate nel service:
+
+- **Assegnazione del referente in creazione**: se il cliente è creato da un
+  `COMMERCIALE`, quel commerciale ne diventa automaticamente il referente
+  (`salesRep`). Se lo crea uno `USER` o un `ADMIN`, il campo resta vuoto e la
+  (ri)assegnazione avviene poi via `PATCH .../sales-rep` (solo ADMIN).
+- **Proprietà in modifica**: un `COMMERCIALE` può modificare solo i clienti di
+  cui è il referente assegnato; sugli altri riceve `403`. L'`ADMIN` non ha
+  questa limitazione.
+- **Tipo societario**: modificare `companyType` è riservato all'`ADMIN`. Un
+  `COMMERCIALE` che tenta di cambiarlo in un `PUT` riceve `403` (se lo lascia
+  invariato, il `PUT` procede).
+- **Partita IVA ed email**: uniche tra tutti i clienti; un duplicato produce
+  `400`.
+- **Eliminazione**: un cliente con Note o Fatture collegate non è eliminabile →
+  `400`.
+
+### Endpoint
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| POST | `/api/clients` | Crea un cliente (con indirizzi annidati) — `201` |
+| GET | `/api/clients` | Lista paginata e filtrabile |
+| GET | `/api/clients/{clientId}` | Dettaglio di un cliente |
+| PUT | `/api/clients/{clientId}` | Modifica anagrafica e indirizzi |
+| PATCH | `/api/clients/{clientId}/sales-rep` | (Ri)assegna il referente commerciale — solo ADMIN |
+| DELETE | `/api/clients/{clientId}` | Elimina un cliente — solo ADMIN, `204` |
+
+### Parametri della lista (`GET /api/clients`)
+
+Tutti opzionali, combinabili in AND.
+
+| Parametro | Tipo | Filtra su |
+|---|---|---|
+| `page`, `size`, `sortBy` | int, int, string | Paginazione e ordinamento (default `0`, `10`, `id`) |
+| `name` | string | Ragione sociale che **contiene** il valore (case-insensitive) |
+| `revenueMin` / `revenueMax` | number | Fatturato annuo `≥` / `≤` (per l'uguaglianza esatta: `revenueMin=X&revenueMax=X`) |
+| `insertedFrom` / `insertedTo` | date `YYYY-MM-DD` | Data di inserimento (`createdAt`), giornata inclusa per intero |
+| `contactedFrom` / `contactedTo` | date `YYYY-MM-DD` | Data dell'ultimo contatto (`lastContactDate`) |
+
+Esempio:
+`GET /api/clients?name=acme&revenueMin=100000&contactedFrom=2026-08-01&sortBy=companyName`
+
+### Request body (`POST` / `PUT`)
+
+```json
+{
+  "companyName": "Acme S.r.l.",
+  "vatNumber": "12345678901",
+  "email": "info@acme.it",
+  "annualRevenue": 150000.00,
+  "companyType": "SRL",
+  "legalAddress": {
+    "street": "Via Roma",
+    "buildingNumber": "10",
+    "city": "Milano",
+    "province": "MI",
+    "postalCode": "20100"
+  },
+  "operationalAddress": null,
+  "lastContactDate": "2026-08-20",
+  "logoUrl": "https://esempio.com/acme-logo.png"
+}
+```
+
+- `companyName`, `vatNumber` (11 cifre), `companyType` (`PA`, `SAS`, `SPA`,
+  `SRL`) e `legalAddress` sono obbligatori.
+- `email` (formato valido), `annualRevenue` (`≥ 0`), `lastContactDate` (non nel
+  futuro) e `logoUrl` (URL valido) sono opzionali.
+- `operationalAddress` opzionale: se assente, viene duplicato dall'indirizzo
+  legale su una riga separata.
+
+### Request body (`PATCH /api/clients/{clientId}/sales-rep`)
+
+```json
+{ "salesRepId": 3 }
+```
+
+- `salesRepId` deve essere l'id di un utente con ruolo `COMMERCIALE` → altrimenti
+  `400`; utente inesistente → `404`.
+- `"salesRepId": null` rimuove il referente dal cliente.
+
+### Response (`POST` / `GET` / `PUT` / `PATCH`)
+
+```json
+{
+  "id": 7,
+  "companyName": "Acme S.r.l.",
+  "vatNumber": "12345678901",
+  "email": "info@acme.it",
+  "annualRevenue": 150000.00,
+  "companyType": "SRL",
+  "logoUrl": "https://esempio.com/acme-logo.png",
+  "lastContactDate": "2026-08-20",
+  "createdAt": "2026-09-03T10:15:30",
+  "updatedAt": "2026-09-03T10:15:30",
+  "salesRep": { "id": 3, "name": "Mario", "surname": "Rossi", "email": "mario@epic.it", "role": "COMMERCIALE" },
+  "legalAddress": { "id": 12, "street": "Via Roma", "buildingNumber": "10", "city": "Milano", "province": "MI", "postalCode": "20100" },
+  "operationalAddress": { "id": 13, "street": "Via Roma", "buildingNumber": "10", "city": "Milano", "province": "MI", "postalCode": "20100" }
+}
+```
+
+`GET /api/clients` restituisce lo stesso oggetto dentro la struttura `Page` di
+Spring (`content`, `totalElements`, `totalPages`, `number`, …).
+
 ## Gestione errori
 
 Un `@RestControllerAdvice` unico (`ExceptionsHandler`) intercetta tutte le
