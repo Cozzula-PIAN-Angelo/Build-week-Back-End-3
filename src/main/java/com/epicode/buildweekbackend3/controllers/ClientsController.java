@@ -2,6 +2,7 @@ package com.epicode.buildweekbackend3.controllers;
 
 import com.epicode.buildweekbackend3.entities.Client;
 import com.epicode.buildweekbackend3.entities.User;
+import com.epicode.buildweekbackend3.payloads.AssignSalesRepDTO;
 import com.epicode.buildweekbackend3.payloads.ClientFilterDTO;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
 import com.epicode.buildweekbackend3.services.ClientsService;
@@ -52,5 +53,11 @@ public class ClientsController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable long clientId, @AuthenticationPrincipal User currentUser) {
         this.clientsService.findByIdAndDelete(clientId, currentUser);
+    }
+
+    @PatchMapping("/{clientId}/sales-rep")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Client assignSalesRep(@PathVariable long clientId, @RequestBody @Valid AssignSalesRepDTO body) {
+        return this.clientsService.assignSalesRep(clientId, body.salesRepId());
     }
 }
