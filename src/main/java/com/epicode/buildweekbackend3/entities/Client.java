@@ -31,6 +31,7 @@ public class Client extends BaseEntity {
     private String vatNumber;
 
     @Email(message = "E-mail non valida.")
+    @Column(unique = true)
     private String email;
 
     @PositiveOrZero
@@ -90,11 +91,25 @@ public class Client extends BaseEntity {
                 .orElse(null);
     }
 
-    // Sostituisce l'indirizzo del tipo indicato: quello vecchio esce dalla
-    // collection e, grazie a orphanRemoval, viene eliminato dal DB al save.
+    // Se un indirizzo di quel tipo esiste già, ne aggiorna i campi in place
+    // invece di sostituirlo con una riga nuova: creare un Address nuovo e
+    // rimuovere il vecchio nella stessa flush violerebbe temporaneamente
+    // uk_addresses_client_type (Hibernate esegue gli INSERT prima delle
+    // DELETE da orphanRemoval). Se non esiste ancora, lo aggiunge.
     private void replaceAddress(AddressType type, Address newAddress) {
-        this.addresses.removeIf(a -> a.getAddressType() == type);
-        if (newAddress != null) {
+        if (newAddress == null) {
+            this.addresses.removeIf(a -> a.getAddressType() == type);
+            return;
+        }
+
+        Address existing = findAddressByType(type);
+        if (existing != null) {
+            existing.setStreet(newAddress.getStreet());
+            existing.setBuildingNumber(newAddress.getBuildingNumber());
+            existing.setCity(newAddress.getCity());
+            existing.setProvince(newAddress.getProvince());
+            existing.setPostalCode(newAddress.getPostalCode());
+        } else {
             newAddress.setAddressType(type);
             newAddress.setClient(this);
             this.addresses.add(newAddress);

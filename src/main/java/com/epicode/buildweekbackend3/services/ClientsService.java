@@ -35,6 +35,10 @@ public class ClientsService {
         if (this.clientsRepository.existsByVatNumber(payload.vatNumber()))
             throw new ValidationException("La partita IVA " + payload.vatNumber() + " è già in uso");
 
+        if (payload.email() != null && !payload.email().isBlank()
+                && this.clientsRepository.existsByEmail(payload.email()))
+            throw new ValidationException("L'email " + payload.email() + " e gia in uso");
+
         Client newClient = new Client(payload.companyName(), payload.vatNumber(), payload.companyType());
         newClient.setEmail(payload.email());
         newClient.setAnnualRevenue(payload.annualRevenue());
