@@ -23,6 +23,7 @@ public class InvoicesController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyAuthority('USER', 'CONTABILE', 'ADMIN')")
     public Page<InvoiceRespDTO> getAll(
             @RequestParam(required = false) Long clientId,
             @RequestParam(required = false) Long statusId,
@@ -34,6 +35,7 @@ public class InvoicesController {
     }
 
     @GetMapping("/{invoiceId}")
+    @PreAuthorize("hasAnyAuthority('USER', 'CONTABILE', 'ADMIN')")
     public InvoiceRespDTO getById(@PathVariable long invoiceId) {
         return this.invoicesService.findByIdAsDTO(invoiceId);
     }
