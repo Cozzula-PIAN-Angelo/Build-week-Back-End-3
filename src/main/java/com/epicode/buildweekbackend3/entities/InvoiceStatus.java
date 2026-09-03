@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -40,11 +39,8 @@ public class InvoiceStatus extends BaseEntity {
     @ToString.Exclude // evita ricorsione infinita nel toString
     private Set<InvoiceStatus> allowedTransitions = new HashSet<>();
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
+    // createdAt/updatedAt e i callback @PrePersist/@PreUpdate arrivano da
+    // BaseEntity: ridichiararli qui mapperebbe due campi sulla stessa colonna.
 
     public InvoiceStatus(String name, Roles requiredRole) {
         this.name = name;
@@ -53,17 +49,5 @@ public class InvoiceStatus extends BaseEntity {
 
     public boolean canTransitionTo(InvoiceStatus target) {
         return target != null && this.allowedTransitions.contains(target);
-    }
-
-    @PrePersist
-    public void onPrePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    public void onPreUpdate() {
-        this.updatedAt = LocalDateTime.now();
     }
 }
