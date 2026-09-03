@@ -8,14 +8,14 @@ import com.epicode.buildweekbackend3.exceptions.ForbiddenException;
 import com.epicode.buildweekbackend3.exceptions.NotFoundException;
 import com.epicode.buildweekbackend3.exceptions.ValidationException;
 import com.epicode.buildweekbackend3.payloads.AddressDTO;
+import com.epicode.buildweekbackend3.payloads.ClientFilterDTO;
 import com.epicode.buildweekbackend3.payloads.NewClientDTO;
-import com.epicode.buildweekbackend3.repositories.ClientsRepository;
-import com.epicode.buildweekbackend3.repositories.InvoicesRepository;
-import com.epicode.buildweekbackend3.repositories.NotesRepository;
+import com.epicode.buildweekbackend3.repositories.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -24,11 +24,13 @@ public class ClientsService {
     private final ClientsRepository clientsRepository; // per salvare/leggere clienti
     private final NotesRepository notesRepository;
     private final InvoicesRepository invoicesRepository;
+    private final UsersRepository usersRepository;
 
-    public ClientsService(ClientsRepository clientsRepository, NotesRepository notesRepository, InvoicesRepository invoicesRepository) {
+    public ClientsService(ClientsRepository clientsRepository, NotesRepository notesRepository, InvoicesRepository invoicesRepository, UsersRepository usersRepository) {
         this.clientsRepository = clientsRepository;
         this.notesRepository = notesRepository;
         this.invoicesRepository = invoicesRepository;
+        this.usersRepository = usersRepository;
     }
 
     public Client create(NewClientDTO payload, User currentUser) {
@@ -82,10 +84,23 @@ public class ClientsService {
                 .orElseThrow(() -> new NotFoundException(clientId));
     }
 
-    public Page<Client> findAll(int page, int size, String sortBy) {
+    public Page<Client> findAll(int page, int size, String sortBy, ClientFilterDTO filter) {
         if (size > 100) size = 100;
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy));
-        return this.clientsRepository.findAll(pageable);
+
+        // spec parte "sempre vero" (cb.conjunction), poi ci aggiungo in AND
+        // solo i filtri che l'utente ha davvero passato. Un filtro null non
+        // aggiunge niente: nella query finale quella condizione non esiste.
+        Specification<Client> spec = (root, query, cb) -> cb.conjunction();
+        if (filter.name() != null)          spec = spec.and(ClientSpecs.nameContains(filter.name()));
+        if (filter.revenueMin() != null)    spec = spec.and(ClientSpecs.revenueAtLeast(filter.revenueMin()));
+        if (filter.revenueMax() != null)    spec = spec.and(ClientSpecs.revenueAtMost(filter.revenueMax()));
+        if (filter.insertedFrom() != null)  spec = spec.and(ClientSpecs.insertedFrom(filter.insertedFrom()));
+        if (filter.insertedTo() != null)    spec = spec.and(ClientSpecs.insertedTo(filter.insertedTo()));
+        if (filter.contactedFrom() != null) spec = spec.and(ClientSpecs.contactedFrom(filter.contactedFrom()));
+        if (filter.contactedTo() != null)   spec = spec.and(ClientSpecs.contactedTo(filter.contactedTo()));
+
+        return this.clientsRepository.findAll(spec, pageable);
     }
 
     public Client findByIdAndUpdate(long clientId, NewClientDTO payload, User currentUser) {
@@ -143,5 +158,30 @@ public class ClientsService {
         }
 
         throw new ForbiddenException("Non sei il referente di questo cliente");
+    }
+
+    public Client assignSalesRep(long clientId, Long salesRepId) {
+        Client client = this.findById(clientId);
+        // Riceve due id: quello del cliente da riassegnare (dall'URL) e quello del commerciale
+        // a cui assegnarlo (dal body). Restituisce il Client aggiornato, così il controller lo
+        //  rispedisce come JSON.
+
+        if (salesRepId == null) {
+            client.setSalesRep(null);
+            return this.clientsRepository.save(client);
+            // Se nel body non è stato passato un salesRepId (è null),
+            // l'intenzione è "questo cliente non ha più un commerciale assegnato".
+            //  - client.setSalesRep(null) → stacca la relazione (la colonna sales_rep_id diventa NULL)
+            //  - save + return → salvo e esco subito dal metodo.
+            //  Il return qui evita di eseguire tutto il resto (che presuppone un salesRepId valido).
+        }
+
+        User salesRep = this.usersRepository.findById(salesRepId).orElseThrow(() -> new NotFoundException(salesRepId));
+
+        if (salesRep.getRole() != Roles.COMMERCIALE)
+            throw new ValidationException("L'utente " + salesRepId + " non è un COMMERCIALE");
+
+        client.setSalesRep(salesRep);
+        return this.clientsRepository.save(client);
     }
 }
