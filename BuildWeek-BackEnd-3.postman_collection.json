@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "BuildWeek Back-End 3 - CRM EPIC ENERGY",
-		"description": "Auth + Users + Clients + Addresses + Notes.\n\nFlusso suggerito:\n1. Auth > Register admin, poi Auth > Login admin (salva {{accessToken}})\n2. Auth > Register commerciale (salva {{commercialeUserId}})\n3. Users > Assign role (porta {{commercialeUserId}} a COMMERCIALE) - richiede il token ADMIN\n4. Auth > Login commerciale (sovrascrive {{accessToken}} con il token del commerciale)\n5. Clients > Create client (chi crea come COMMERCIALE diventa automaticamente il referente assegnato; salva {{clientId}}, {{addressId}} = id della sede legale, {{operationalAddressId}} = id della sede operativa)\n6. Notes > Create note (consentito solo al COMMERCIALE referente o a un ADMIN)\n\nRicorda di rifare il login (Auth > Login admin / Login commerciale) ogni volta che serve cambiare il ruolo con cui chiami le richieste successive: {{accessToken}} è condiviso da tutta la collection.\n\nNote sul modello dati (dopo il refactor Address/Client):\n- Un Address non esiste senza un Client: non ci sono più endpoint per crearlo/eliminarlo da solo. legalAddress e operationalAddress si passano annidati dentro il body di Clients > Create/Update client.\n- Se operationalAddress non viene passato, il service duplica i dati di legalAddress in una riga a parte (i due indirizzi restano righe distinte anche se coincidono).\n- Il modulo Fatture (Invoice/InvoiceStatus) ha solo entità/repository/service al momento: nessun controller REST ancora, quindi non è testabile da qui.\n\nVariabili di collection:\n- baseUrl: http://localhost:2462\n- accessToken: lo setta l'ultimo login eseguito\n- adminUserId / commercialeUserId / tempUserId: id utente per Users e per il flusso Assign role\n- clientId: id cliente creato con Clients > Create client\n- addressId: id della sede legale del cliente creato\n- operationalAddressId: id della sede operativa del cliente creato\n- noteId: id nota creata con Notes > Create note",
+		"description": "Auth + Users + Clients + Addresses + Notes.\n\nFlusso suggerito:\n1. Auth > Register admin, poi Auth > Login admin (salva {{accessToken}})\n2. Auth > Register commerciale (salva {{commercialeUserId}})\n3. Users > Assign role (porta {{commercialeUserId}} a COMMERCIALE) - richiede il token ADMIN\n4. Auth > Login commerciale (sovrascrive {{accessToken}} con il token del commerciale)\n5. Clients > Create client (chi crea come COMMERCIALE diventa automaticamente il referente assegnato; salva {{clientId}}, {{addressId}} = id della sede legale, {{operationalAddressId}} = id della sede operativa)\n6. Notes > Create note (consentito solo al COMMERCIALE referente o a un ADMIN)\n\nRicorda di rifare il login (Auth > Login admin / Login commerciale) ogni volta che serve cambiare il ruolo con cui chiami le richieste successive: {{accessToken}} è condiviso da tutta la collection.\n\nNote sul modello dati (dopo il refactor Address/Client):\n- Un Address non esiste senza un Client: non ci sono endpoint per crearlo, modificarlo o eliminarlo da solo. legalAddress e operationalAddress si passano annidati dentro il body di Clients > Create/Update client; la sezione Addresses espone solo GET.\n- Se operationalAddress non viene passato, il service duplica i dati di legalAddress in una riga a parte (i due indirizzi restano righe distinte anche se coincidono).\n- Il modulo Fatture (Invoice/InvoiceStatus) ha solo entità/repository/service al momento: nessun controller REST ancora, quindi non è testabile da qui.\n\nVariabili di collection:\n- baseUrl: http://localhost:2462\n- accessToken: lo setta l'ultimo login eseguito\n- adminUserId / commercialeUserId / tempUserId: id utente per Users e per il flusso Assign role\n- clientId: id cliente creato con Clients > Create client\n- addressId: id della sede legale del cliente creato\n- operationalAddressId: id della sede operativa del cliente creato\n- noteId: id nota creata con Notes > Create note",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -383,7 +383,7 @@
 		},
 		{
 			"name": "Addresses",
-			"description": "Un Address non esiste senza un Client: niente più create/delete standalone (si creano/sostituiscono solo tramite Clients > Create/Update client). Qui restano solo lettura e update dei campi di un indirizzo già esistente. GET nessuna restrizione di ruolo; PUT richiede ADMIN o COMMERCIALE.",
+			"description": "Un Address non esiste senza un Client: niente endpoint standalone di create/update/delete. Si creano, si modificano e si eliminano solo tramite Clients > Create/Update client (legalAddress / operationalAddress annidati nel body). Qui resta solo la lettura, senza restrizioni di ruolo.",
 			"item": [
 				{
 					"name": "Get all addresses",
@@ -412,24 +412,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["api", "addresses", "{{addressId}}"]
 						},
-						"description": "Usa {{addressId}} (sede legale del cliente creato con Clients > Create client)."
-					}
-				},
-				{
-					"name": "Update address by id",
-					"request": {
-						"method": "PUT",
-						"header": [{ "key": "Content-Type", "value": "application/json" }],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"street\": \"Via Roma\",\n  \"buildingNumber\": \"12\",\n  \"city\": \"Milano\",\n  \"province\": \"MI\",\n  \"postalCode\": \"20121\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/addresses/{{addressId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "addresses", "{{addressId}}"]
-						},
-						"description": "Aggiorna solo i campi dell'indirizzo (via, città, ecc.): client e address_type restano quelli originali, non modificabili da qui."
+						"description": "Usa {{addressId}} (sede legale del cliente creato con Clients > Create client). Per modificare i campi di un indirizzo usa Clients > Update client."
 					}
 				}
 			]

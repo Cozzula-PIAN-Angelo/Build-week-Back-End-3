@@ -2,7 +2,6 @@ package com.epicode.buildweekbackend3.services;
 
 import com.epicode.buildweekbackend3.entities.Address;
 import com.epicode.buildweekbackend3.exceptions.NotFoundException;
-import com.epicode.buildweekbackend3.payloads.AddressDTO;
 import com.epicode.buildweekbackend3.repositories.AddressesRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -11,6 +10,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+// Sola lettura: la modifica dei campi di un indirizzo passa dal PUT sul
+// Cliente (ClientsService.findByIdAndUpdate), che è anche l'unico punto in
+// cui si applica il controllo di competenza sul referente (checkCanManage).
 @Service
 public class AddressesService {
 
@@ -25,17 +27,5 @@ public class AddressesService {
     public Address findById(Long id) {
         return addressesRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Indirizzo con id " + id + " non trovato!"));
-    }
-
-    public Address findByIdAndUpdate(Long id, AddressDTO body) {
-        Address found = this.findById(id);
-
-        found.setStreet(body.street());
-        found.setBuildingNumber(body.buildingNumber());
-        found.setCity(body.city());
-        found.setProvince(body.province().toUpperCase());
-        found.setPostalCode(body.postalCode());
-
-        return addressesRepository.save(found);
     }
 }

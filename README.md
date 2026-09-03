@@ -49,12 +49,34 @@ ammessi: `USER`, `COMMERCIALE`, `CONTABILE`, `ADMIN`).
 - **Client** — ragione sociale, partita IVA, email, fatturato annuale, tipo
   societario, referente commerciale (→ User), indirizzo legale/operativo
   (→ Address)
-- **Address** — via, civico, località, CAP, comune
+- **Address** — via, civico, città, provincia, CAP; tipo (`LEGAL` / `OPERATIONAL`),
+  cliente (→ Client)
 - **Note** — testo, data di creazione, autore (→ User), cliente (→ Client)
 
-> Nota di stato: al momento non esiste ancora un endpoint HTTP per creare
-> Client/Address (in sviluppo su un altro branch del team); le entità e i
-> repository esistono già lato service.
+### Indirizzi: gestione annidata nel Cliente (strada 1)
+
+La consegna lascia scegliere tra due strade per gli indirizzi. Abbiamo
+adottato la **strada 1**: un `Address` non ha una vita propria e si gestisce
+solo attraverso il Cliente che lo possiede.
+
+Motivazione:
+
+- Nel dominio un indirizzo (sede legale / sede operativa) esiste **solo** in
+  quanto sede di un cliente: `addresses.client_id` è `NOT NULL` e la coppia
+  `(client_id, address_type)` è `UNIQUE`. Un `Address` orfano non è uno stato
+  valido, quindi non ha senso esporne creazione ed eliminazione autonome.
+- `legalAddress` e `operationalAddress` viaggiano **annidati** nel body di
+  `POST` / `PUT /api/clients`. Se `operationalAddress` non è indicato, il
+  service ne crea una copia dai dati di `legalAddress` (righe distinte anche
+  se coincidono).
+- Di conseguenza **non esiste un endpoint di modifica dell'indirizzo**: la
+  modifica passa dal `PUT` sul Cliente. Questo tiene il controllo di
+  competenza in un punto solo — `ClientsService.checkCanManage` (ADMIN
+  sempre; COMMERCIALE solo sui clienti di cui è referente) — evitando una
+  seconda porta d'accesso agli indirizzi con regole da mantenere allineate.
+
+`GET /api/addresses` e `GET /api/addresses/{id}` restano disponibili in sola
+lettura (nessuna restrizione di ruolo) come comodità di consultazione.
 
 ## Modulo Note
 
