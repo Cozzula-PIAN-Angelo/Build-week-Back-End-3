@@ -1,7 +1,7 @@
 {
 	"info": {
 		"name": "BuildWeek Back-End 3 - CRM EPIC ENERGY",
-		"description": "Auth + Users + Clients + Addresses + Notes.\n\nFlusso suggerito:\n1. Auth > Register admin, poi Auth > Login admin (salva {{accessToken}})\n2. Auth > Register commerciale (salva {{commercialeUserId}})\n3. Users > Assign role (porta {{commercialeUserId}} a COMMERCIALE) - richiede il token ADMIN\n4. Auth > Login commerciale (sovrascrive {{accessToken}} con il token del commerciale)\n5. Clients > Create client (chi crea come COMMERCIALE diventa automaticamente il referente assegnato; salva {{clientId}}, {{addressId}} = id della sede legale, {{operationalAddressId}} = id della sede operativa)\n6. Notes > Create note (consentito solo al COMMERCIALE referente o a un ADMIN)\n\nRicorda di rifare il login (Auth > Login admin / Login commerciale) ogni volta che serve cambiare il ruolo con cui chiami le richieste successive: {{accessToken}} è condiviso da tutta la collection.\n\nNote sul modello dati (dopo il refactor Address/Client):\n- Un Address non esiste senza un Client: non ci sono più endpoint per crearlo/eliminarlo da solo. legalAddress e operationalAddress si passano annidati dentro il body di Clients > Create/Update client.\n- Se operationalAddress non viene passato, il service duplica i dati di legalAddress in una riga a parte (i due indirizzi restano righe distinte anche se coincidono).\n- Il modulo Fatture (Invoice/InvoiceStatus) ha solo entità/repository/service al momento: nessun controller REST ancora, quindi non è testabile da qui.\n\nVariabili di collection:\n- baseUrl: http://localhost:2462\n- accessToken: lo setta l'ultimo login eseguito\n- adminUserId / commercialeUserId / tempUserId: id utente per Users e per il flusso Assign role\n- clientId: id cliente creato con Clients > Create client\n- addressId: id della sede legale del cliente creato\n- operationalAddressId: id della sede operativa del cliente creato\n- noteId: id nota creata con Notes > Create note",
+		"description": "Auth + Users + Clients + Addresses + Notes + Invoice Statuses + Invoices.\n\nFlusso suggerito:\n1. Auth > Register admin, poi Auth > Login admin (salva {{accessToken}})\n2. Auth > Register commerciale (salva {{commercialeUserId}})\n3. Users > Assign role (porta {{commercialeUserId}} a COMMERCIALE) - richiede il token ADMIN\n4. Auth > Login commerciale (sovrascrive {{accessToken}} con il token del commerciale)\n5. Clients > Create client (chi crea come COMMERCIALE diventa automaticamente il referente assegnato; salva {{clientId}}, {{addressId}} = id della sede legale, {{operationalAddressId}} = id della sede operativa)\n6. Notes > Create note (consentito solo al COMMERCIALE referente o a un ADMIN)\n7. Auth > Register contabile, poi Users > Assign role - contabile (richiede il token ADMIN), poi Auth > Login contabile\n8. Invoice Statuses > Get all (salva gli id dei 5 stati seedati in {{bozzaStatusId}}, {{emessaStatusId}}, ecc.), poi Invoices > Create invoice (nasce sempre nello stato iniziale BOZZA) e Invoices > Change status per farla avanzare\n\nRicorda di rifare il login (Auth > Login admin / Login commerciale) ogni volta che serve cambiare il ruolo con cui chiami le richieste successive: {{accessToken}} è condiviso da tutta la collection.\n\nNote sul modello dati (dopo il refactor Address/Client):\n- Un Address non esiste senza un Client: non ci sono più endpoint per crearlo/eliminarlo da solo. legalAddress e operationalAddress si passano annidati dentro il body di Clients > Create/Update client.\n- Se operationalAddress non viene passato, il service duplica i dati di legalAddress in una riga a parte (i due indirizzi restano righe distinte anche se coincidono).\n- Il modulo Fatture (Invoice/InvoiceStatus) ha ora anche i controller REST (lavoro di Cristian): CRUD Invoice Statuses, CRUD Invoices, filtro lista per clientId/statusId, endpoint dedicato per il cambio di stato. USER ha sola lettura, CONTABILE gestisce tutto tranne la transizione a INSOLUTA (riservata ad ADMIN), COMMERCIALE non ha alcun accesso alle Fatture (nemmeno in lettura).\n\nVariabili di collection:\n- baseUrl: http://localhost:2462\n- accessToken: lo setta l'ultimo login eseguito\n- adminUserId / commercialeUserId / contabileUserId / tempUserId: id utente per Users e per il flusso Assign role\n- clientId: id cliente creato con Clients > Create client\n- addressId: id della sede legale del cliente creato\n- operationalAddressId: id della sede operativa del cliente creato\n- noteId: id nota creata con Notes > Create note\n- bozzaStatusId / emessaStatusId / pagataStatusId / scadutaStatusId / insolutaStatusId: id dei 5 stati fattura, salvati automaticamente da Invoice Statuses > Get all (seedati da InvoiceStatusSeeder al primo avvio su DB vuoto)\n- invoiceId: id fattura creata con Invoices > Create invoice",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"auth": {
@@ -19,11 +19,18 @@
 		{ "key": "accessToken", "value": "" },
 		{ "key": "adminUserId", "value": "" },
 		{ "key": "commercialeUserId", "value": "" },
+		{ "key": "contabileUserId", "value": "" },
 		{ "key": "tempUserId", "value": "" },
 		{ "key": "clientId", "value": "" },
 		{ "key": "addressId", "value": "" },
 		{ "key": "operationalAddressId", "value": "" },
-		{ "key": "noteId", "value": "" }
+		{ "key": "noteId", "value": "" },
+		{ "key": "bozzaStatusId", "value": "" },
+		{ "key": "emessaStatusId", "value": "" },
+		{ "key": "pagataStatusId", "value": "" },
+		{ "key": "scadutaStatusId", "value": "" },
+		{ "key": "insolutaStatusId", "value": "" },
+		{ "key": "invoiceId", "value": "" }
 	],
 	"item": [
 		{
@@ -91,6 +98,38 @@
 							"path": ["api", "auth", "register"]
 						},
 						"description": "Utente da promuovere a COMMERCIALE con Users > Assign role, per testare il flusso di creazione Client/Note come referente."
+					}
+				},
+				{
+					"name": "Register - contabile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"contabileUserId\", json.userId);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Carla\",\n  \"surname\": \"Verdi\",\n  \"email\": \"contabile@test.com\",\n  \"password\": \"contabile123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Utente da promuovere a CONTABILE con Users > Assign role - contabile, per testare il modulo Fatture."
 					}
 				},
 				{
@@ -188,6 +227,38 @@
 						},
 						"description": "Sovrascrive {{accessToken}} con il token del commerciale. Usalo prima di Clients > Create client / Notes, per testare il flusso da referente."
 					}
+				},
+				{
+					"name": "Login - contabile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"accessToken\", json.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"contabile@test.com\",\n  \"password\": \"contabile123\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Sovrascrive {{accessToken}} con il token del contabile. Usalo prima di Invoice Statuses / Invoices, per testare il flusso da CONTABILE (nessun accesso alle Note, nessuna transizione a INSOLUTA)."
+					}
 				}
 			]
 		},
@@ -266,6 +337,23 @@
 							"path": ["api", "users", "{{commercialeUserId}}", "role"]
 						},
 						"description": "Valori ammessi: USER, COMMERCIALE, CONTABILE, ADMIN. Richiede ADMIN (usa {{accessToken}} dell'admin: esegui Auth > Login admin prima di questa richiesta)."
+					}
+				},
+				{
+					"name": "Assign role - contabile",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"roles\": \"CONTABILE\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/{{contabileUserId}}/role",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "{{contabileUserId}}", "role"]
+						},
+						"description": "Richiede ADMIN (usa {{accessToken}} dell'admin: esegui Auth > Login admin prima di questa richiesta)."
 					}
 				},
 				{
@@ -519,6 +607,217 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["api", "notes", "{{noteId}}"]
 						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Invoice Statuses",
+			"description": "GET: nessuna restrizione di ruolo, letti da chiunque sia autenticato. POST/PUT/DELETE: richiedono CONTABILE o ADMIN. Il test di 'Get all' salva automaticamente l'id di ciascuno dei 5 stati seedati (BOZZA, EMESSA, PAGATA, SCADUTA, INSOLUTA) nelle relative variabili di collection.",
+			"item": [
+				{
+					"name": "Get all invoice statuses",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var json = pm.response.json();",
+									"    json.forEach(function (s) {",
+									"        pm.collectionVariables.set(s.name.toLowerCase() + \"StatusId\", s.id);",
+									"    });",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/invoice-statuses",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoice-statuses"]
+						},
+						"description": "Seedati al primo avvio su DB vuoto da InvoiceStatusSeeder: BOZZA -> EMESSA -> (PAGATA | SCADUTA) -> INSOLUTA. Esegui questa richiesta prima di Invoices > Change status, per avere gli id in {{bozzaStatusId}}, {{emessaStatusId}}, {{pagataStatusId}}, {{scadutaStatusId}}, {{insolutaStatusId}}."
+					}
+				},
+				{
+					"name": "Get invoice status by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/invoice-statuses/{{emessaStatusId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoice-statuses", "{{emessaStatusId}}"]
+						}
+					}
+				},
+				{
+					"name": "Create invoice status",
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"IN_CONTENZIOSO\",\n  \"description\": \"Pratica passata al recupero crediti legale\",\n  \"requiredRole\": \"ADMIN\",\n  \"allowedTransitionIds\": []\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/invoice-statuses",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoice-statuses"]
+						},
+						"description": "Richiede CONTABILE o ADMIN. Gli stati sono un'entità, non un enum: se ne possono aggiungere di nuovi a runtime. requiredRole è opzionale (default CONTABILE) e determina chi può portare una fattura in questo stato; allowedTransitionIds è l'insieme degli id degli stati raggiungibili da questo."
+					}
+				},
+				{
+					"name": "Update invoice status",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"IN_CONTENZIOSO\",\n  \"description\": \"Pratica passata al recupero crediti legale, aggiornato\",\n  \"requiredRole\": \"ADMIN\",\n  \"allowedTransitionIds\": []\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/invoice-statuses/{{insolutaStatusId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoice-statuses", "{{insolutaStatusId}}"]
+						},
+						"description": "Richiede CONTABILE o ADMIN. Sostituisci l'id nell'URL con quello dello stato creato con Create invoice status."
+					}
+				},
+				{
+					"name": "Delete invoice status",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/invoice-statuses/{{insolutaStatusId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoice-statuses", "{{insolutaStatusId}}"]
+						},
+						"description": "Richiede CONTABILE o ADMIN. Fallisce se lo stato è ancora quello corrente di almeno una fattura. Sostituisci l'id nell'URL con quello dello stato creato con Create invoice status, non con uno dei 5 stati seedati."
+					}
+				}
+			]
+		},
+		{
+			"name": "Invoices",
+			"description": "GET (lista e dettaglio): USER, CONTABILE o ADMIN - COMMERCIALE non ha alcun accesso alle Fatture. POST/PUT/DELETE/cambio stato ordinario: CONTABILE o ADMIN. Transizione verso INSOLUTA: riservata ad ADMIN. Nasce sempre nello stato iniziale (BOZZA): lo stato non si passa alla creazione, si cambia solo con l'endpoint dedicato.",
+			"item": [
+				{
+					"name": "Create invoice",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var json = pm.response.json();",
+									"    pm.collectionVariables.set(\"invoiceId\", json.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"invoiceNumber\": \"FT-2026-001\",\n  \"invoiceDate\": \"2026-09-03\",\n  \"amount\": 1200.00,\n  \"clientId\": {{clientId}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/invoices",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoices"]
+						},
+						"description": "Richiede CONTABILE o ADMIN. clientId deve riferirsi a un cliente esistente (vedi Clients > Create client). La fattura nasce sempre nello stato iniziale (BOZZA): passare uno stato nel body non avrebbe effetto, non è un campo previsto."
+					}
+				},
+				{
+					"name": "Get all invoices",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/invoices?page=0&size=10&sortBy=id",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoices"],
+							"query": [
+								{ "key": "page", "value": "0" },
+								{ "key": "size", "value": "10" },
+								{ "key": "sortBy", "value": "id" },
+								{ "key": "clientId", "value": "", "disabled": true },
+								{ "key": "statusId", "value": "", "disabled": true }
+							]
+						},
+						"description": "clientId e statusId sono opzionali (query param disabilitati di default: abilitali e valorizzali per filtrare). Richiede USER, CONTABILE o ADMIN - un COMMERCIALE riceve 403."
+					}
+				},
+				{
+					"name": "Get invoice by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/invoices/{{invoiceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoices", "{{invoiceId}}"]
+						},
+						"description": "Richiede USER, CONTABILE o ADMIN - un COMMERCIALE riceve 403."
+					}
+				},
+				{
+					"name": "Update invoice",
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"invoiceNumber\": \"FT-2026-001\",\n  \"invoiceDate\": \"2026-09-03\",\n  \"amount\": 1500.00,\n  \"clientId\": {{clientId}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/invoices/{{invoiceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoices", "{{invoiceId}}"]
+						},
+						"description": "Richiede CONTABILE o ADMIN. Modifica solo numero/data/importo/cliente: non tocca lo stato, per quello vedi Change status."
+					}
+				},
+				{
+					"name": "Change status",
+					"request": {
+						"method": "PATCH",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newStatusId\": {{emessaStatusId}}\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/invoices/{{invoiceId}}/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoices", "{{invoiceId}}", "status"]
+						},
+						"description": "Endpoint dedicato al cambio di stato, distinto da Update invoice. Transizioni ammesse: BOZZA -> EMESSA -> (PAGATA | SCADUTA), SCADUTA -> INSOLUTA; mai indietro, mai un salto. Transizioni ordinarie richiedono CONTABILE o ADMIN; verso INSOLUTA richiede ADMIN (un CONTABILE riceve 403 con messaggio esplicito). Esegui Invoice Statuses > Get all prima, per avere {{emessaStatusId}} ecc. valorizzati."
+					}
+				},
+				{
+					"name": "Delete invoice",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/invoices/{{invoiceId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "invoices", "{{invoiceId}}"]
+						},
+						"description": "Richiede CONTABILE o ADMIN."
 					}
 				}
 			]
