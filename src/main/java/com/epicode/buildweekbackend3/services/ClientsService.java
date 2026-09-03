@@ -45,6 +45,7 @@ public class ClientsService {
         newClient.setEmail(payload.email());
         newClient.setAnnualRevenue(payload.annualRevenue());
         newClient.setLastContactDate(payload.lastContactDate());
+        newClient.setLogoUrl(payload.logoUrl());
 
         newClient.setLegalAddress(this.buildAddress(payload.legalAddress()));
 
@@ -133,6 +134,7 @@ public class ClientsService {
                 payload.operationalAddress() != null
                         ? this.buildAddress(payload.operationalAddress())
                         : this.buildAddress(payload.legalAddress()));
+        clientFromDB.setLogoUrl(payload.logoUrl());
 
         return this.clientsRepository.save(clientFromDB);
     }
