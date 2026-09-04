@@ -1,5 +1,11 @@
 # EPIC ENERGY SERVICES — CRM Backend
 
+![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)
+![Spring Security](https://img.shields.io/badge/Auth-JWT-000000?logo=jsonwebtokens&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Maven](https://img.shields.io/badge/Maven-build-C71A36?logo=apachemaven&logoColor=white)
+
 Backend di un CRM per un'azienda fornitrice di energia che gestisce i contatti
 con i clienti business. Progetto realizzato durante la build week EPICODE da
 un team di 5 persone, ciascuna responsabile di un'area diversa del dominio.
@@ -8,6 +14,20 @@ Questo README copre la parte comune del progetto (setup, autenticazione,
 gestione errori, collection Postman) e in dettaglio ogni modulo del dominio —
 **Utenti**, **Indirizzi**, **Note**, **Clienti**, **Fatture** — con endpoint,
 regole di autorizzazione ed esempi di payload.
+
+## Indice
+
+- 🛠️ [Stack tecnologico](#stack-tecnologico)
+- 🚀 [Avvio del progetto](#avvio-del-progetto)
+- 🔐 [Autenticazione](#autenticazione)
+- 🗄️ [Modello dati (sintesi)](#modello-dati-sintesi)
+  - [Indirizzi: gestione annidata nel Cliente (strada 1)](#indirizzi-gestione-annidata-nel-cliente-strada-1)
+- 👤 [Modulo Utenti](#modulo-utenti)
+- 📝 [Modulo Note](#modulo-note)
+- 🏢 [Modulo Clienti](#modulo-clienti)
+- 🧾 [Modulo Fatture](#modulo-fatture)
+- ⚠️ [Gestione errori](#gestione-errori)
+- 📮 [Collection Postman](#collection-postman)
 
 ## Stack tecnologico
 
@@ -33,23 +53,6 @@ due file in `src/main/resources/`:
 ```
 
 L'applicazione parte sulla porta `2462`.
-
-### Profilo `demo` (dati di esempio)
-
-Attivando il profilo `demo` **in aggiunta** a `local`, `DemoDataSeeder`
-**svuota** le tabelle di utenti, clienti, indirizzi, fatture e note e le
-ripopola con 4 utenti (uno per ruolo), 5 clienti e una fattura per ogni stato
-del ciclo di vita. Serve solo per presentazioni: non si attiva mai in un avvio
-normale.
-
-```bash
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local,demo
-```
-
-Utenti creati (password `12345` per tutti): `admin@buildweek.demo`,
-`commerciale@buildweek.demo`, `contabile@buildweek.demo`,
-`user@buildweek.demo`. Gli stati fattura (`invoice_statuses`) non vengono
-toccati: li gestisce `InvoiceStatusSeeder`.
 
 ## Autenticazione
 
@@ -101,8 +104,9 @@ Motivazione:
   sempre; COMMERCIALE solo sui clienti di cui è referente) — evitando una
   seconda porta d'accesso agli indirizzi con regole da mantenere allineate.
 
-`GET /api/addresses` e `GET /api/addresses/{id}` restano disponibili in sola
-lettura (nessuna restrizione di ruolo) come comodità di consultazione.
+> [!NOTE]
+> `GET /api/addresses` e `GET /api/addresses/{id}` restano disponibili in
+> sola lettura (nessuna restrizione di ruolo) come comodità di consultazione.
 
 ## Modulo Utenti
 
@@ -183,9 +187,11 @@ precedente (es. dopo una riassegnazione).
 | CONTABILE     | ❌ | ❌ | ❌ | ❌ |
 | ADMIN         | ✅ sempre | ✅ sempre | ✅ sempre | ✅ sempre |
 
-Le Note non compaiono mai, per nessun motivo, nella risposta a un CONTABILE
-— nemmeno annidate dentro la risposta di un'altra risorsa (es. il dettaglio
-di un Client). Questo filtro è applicato lato service, mai lato controller.
+> [!IMPORTANT]
+> Le Note non compaiono mai, per nessun motivo, nella risposta a un
+> CONTABILE — nemmeno annidate dentro la risposta di un'altra risorsa (es.
+> il dettaglio di un Client). Questo filtro è applicato lato service, mai
+> lato controller.
 
 ### Endpoint
 
@@ -378,9 +384,10 @@ BOZZA → EMESSA → PAGATA            (terminale)
                 → SCADUTA → INSOLUTA   (terminale)
 ```
 
-Non esistono coppie inverse: non si torna mai a uno stato precedente e non si
-saltano stati. Una transizione non ammessa restituisce `400` con l'elenco degli
-stati raggiungibili.
+> [!WARNING]
+> Non esistono coppie inverse: non si torna mai a uno stato precedente e non
+> si saltano stati. Una transizione non ammessa restituisce `400` con
+> l'elenco degli stati raggiungibili.
 
 ### Endpoint
 
