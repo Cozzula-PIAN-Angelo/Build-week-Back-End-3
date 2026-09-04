@@ -5,9 +5,9 @@ con i clienti business. Progetto realizzato durante la build week EPICODE da
 un team di 5 persone, ciascuna responsabile di un'area diversa del dominio.
 
 Questo README copre la parte comune del progetto (setup, autenticazione,
-gestione errori) e in dettaglio il modulo **Note**, di cui questo autore è
-responsabile insieme alla parte trasversale (validazione, exception handler
-globale, collection Postman).
+gestione errori, collection Postman) e in dettaglio ogni modulo del dominio —
+**Utenti**, **Indirizzi**, **Note**, **Clienti**, **Fatture** — con endpoint,
+regole di autorizzazione ed esempi di payload.
 
 ## Stack tecnologico
 
@@ -103,6 +103,64 @@ Motivazione:
 
 `GET /api/addresses` e `GET /api/addresses/{id}` restano disponibili in sola
 lettura (nessuna restrizione di ruolo) come comodità di consultazione.
+
+## Modulo Utenti
+
+La registrazione (`POST /api/auth/register`) è pubblica e crea sempre un utente
+con ruolo `USER`; il login (`POST /api/auth/login`) restituisce l'access token
+JWT (vedi sezione **Autenticazione**). Tutta la gestione successiva degli utenti
+è riservata all'`ADMIN`, con l'unica eccezione della lettura del proprio
+profilo.
+
+### Regole di autorizzazione
+
+| Operazione | USER | COMMERCIALE | CONTABILE | ADMIN |
+|---|:--:|:--:|:--:|:--:|
+| `GET /me` (proprio profilo) | ✅ | ✅ | ✅ | ✅ |
+| `GET` (lista), `GET /{id}` | ❌ | ❌ | ❌ | ✅ |
+| `PUT /{id}` (dati anagrafici) | ❌ | ❌ | ❌ | ✅ |
+| `PATCH /{id}/role` | ❌ | ❌ | ❌ | ✅ |
+| `DELETE /{id}` | ❌ | ❌ | ❌ | ✅ |
+
+### Endpoint
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| GET | `/api/users` | Lista di tutti gli utenti — solo ADMIN |
+| GET | `/api/users/me` | Profilo dell'utente autenticato |
+| GET | `/api/users/{userId}` | Dettaglio di un utente — solo ADMIN |
+| PUT | `/api/users/{userId}` | Modifica nome / cognome / email / password — solo ADMIN |
+| PATCH | `/api/users/{userId}/role` | Cambia il ruolo — solo ADMIN |
+| DELETE | `/api/users/{userId}` | Elimina un utente — solo ADMIN, `204` |
+
+### Request body (`POST /api/auth/register` e `PUT /api/users/{userId}`)
+
+```json
+{
+  "name": "Mario",
+  "surname": "Rossi",
+  "email": "mario@epic.it",
+  "password": "segreta"
+}
+```
+
+Tutti i campi sono obbligatori. `email` deve essere valida e unica tra gli
+utenti (duplicato → `400`); `password` almeno 4 caratteri. La password viene
+salvata come hash BCrypt e non compare mai nelle risposte.
+
+### Request body (`PATCH /api/users/{userId}/role`)
+
+```json
+{ "roles": "COMMERCIALE" }
+```
+
+Valori ammessi: `USER`, `COMMERCIALE`, `CONTABILE`, `ADMIN` (case-insensitive).
+Un valore non valido → `400`.
+
+### Response
+
+`GET /me`, `GET /{userId}`, `PUT` e `PATCH` restituiscono l'utente (senza la
+password); `POST /api/auth/register` risponde `201` con `{ "userId": N }`.
 
 ## Modulo Note
 
@@ -404,11 +462,13 @@ eccezioni custom del progetto e restituisce un payload coerente:
 | Eccezione             | Status HTTP | Quando                                              |
 |------------------------|:-----------:|------------------------------------------------------|
 | `ValidationException`  | 400         | Dati non validi (es. partita IVA già in uso)         |
-| Errori `@Valid` sui DTO| 400         | Campo mancante o non conforme ai vincoli             |
+| Errori `@Valid` sui DTO (`MethodArgumentNotValidException`) | 400 | Campo mancante o non conforme ai vincoli    |
+| `HttpMessageNotReadableException` | 400 | Body JSON malformato, tipo di campo errato o valore enum inesistente |
 | `UnauthorizedException`| 401         | Token mancante, scaduto o non valido                 |
 | `ForbiddenException`, `AuthorizationDeniedException` | 403 | Utente autenticato ma senza i permessi per l'azione |
 | `NotFoundException`    | 404         | Risorsa (Nota, Cliente, ...) inesistente             |
-| Qualsiasi altra `Exception` | 500   | Errore imprevisto                                    |
+| `NoResourceFoundException` | 404     | URL non mappato su nessun endpoint                   |
+| Qualsiasi altra `Exception` | 500   | Errore imprevisto (stack trace loggato lato server) |
 
 ## Collection Postman
 
