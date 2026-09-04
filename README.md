@@ -18,16 +18,38 @@ globale, collection Postman).
 
 ## Avvio del progetto
 
-Prerequisiti: JDK 25, un database PostgreSQL raggiungibile con le credenziali
-indicate in `src/main/resources/application.properties` (schema creato/
-aggiornato automaticamente da Hibernate, `ddl-auto=update`).
+Prerequisiti: JDK 25 e un database PostgreSQL. La configurazione è divisa su
+due file in `src/main/resources/`:
+
+- `application.properties` — nome applicazione, URL del datasource
+  (`jdbc:postgresql://localhost:5432/BuildWeekJava`), `ddl-auto=update` (schema
+  creato/aggiornato automaticamente da Hibernate) e profilo attivo (`local`).
+- `application-local.properties` — credenziali del database
+  (`spring.datasource.username` / `password`), `server.port=2462` e
+  `jwt.secret`.
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-L'applicazione parte sulla porta `2462` (`server.port` in
-`application.properties`).
+L'applicazione parte sulla porta `2462`.
+
+### Profilo `demo` (dati di esempio)
+
+Attivando il profilo `demo` **in aggiunta** a `local`, `DemoDataSeeder`
+**svuota** le tabelle di utenti, clienti, indirizzi, fatture e note e le
+ripopola con 4 utenti (uno per ruolo), 5 clienti e una fattura per ogni stato
+del ciclo di vita. Serve solo per presentazioni: non si attiva mai in un avvio
+normale.
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local,demo
+```
+
+Utenti creati (password `12345` per tutti): `admin@buildweek.demo`,
+`commerciale@buildweek.demo`, `contabile@buildweek.demo`,
+`user@buildweek.demo`. Gli stati fattura (`invoice_statuses`) non vengono
+toccati: li gestisce `InvoiceStatusSeeder`.
 
 ## Autenticazione
 
@@ -390,7 +412,10 @@ eccezioni custom del progetto e restituisce un payload coerente:
 
 ## Collection Postman
 
-`BuildWeek-BackEnd-3.postman_collection.json` nella root del repo contiene le
-richieste di autenticazione e utenti; le richieste per il modulo Note vanno
-aggiunte non appena sarà disponibile un `clientId` di test (endpoint Client
-in arrivo da un altro membro del team).
+`BuildWeek-BackEnd-3.postman_collection.json` nella root del repo copre tutti i
+moduli, organizzata in cartelle: **Auth**, **Users**, **Clients**,
+**Addresses**, **Notes**, **Invoice Statuses**, **Invoices**.
+
+Le richieste di login salvano il token JWT in una variabile di collection, così
+le chiamate successive lo riusano automaticamente nell'header
+`Authorization`.
