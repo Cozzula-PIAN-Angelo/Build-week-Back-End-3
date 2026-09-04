@@ -52,6 +52,10 @@ ammessi: `USER`, `COMMERCIALE`, `CONTABILE`, `ADMIN`).
 - **Address** — via, civico, città, provincia, CAP; tipo (`LEGAL` / `OPERATIONAL`),
   cliente (→ Client)
 - **Note** — testo, data di creazione, autore (→ User), cliente (→ Client)
+- **Invoice** — numero (unico), data, importo, stato (→ InvoiceStatus), cliente
+  (→ Client)
+- **InvoiceStatus** — nome, descrizione, ruolo richiesto per entrarci, insieme
+  degli stati raggiungibili (grafo delle transizioni)
 
 ### Indirizzi: gestione annidata nel Cliente (strada 1)
 
@@ -255,6 +259,113 @@ Esempio:
 
 `GET /api/clients` restituisce lo stesso oggetto dentro la struttura `Page` di
 Spring (`content`, `totalElements`, `totalPages`, `number`, …).
+
+## Modulo Fatture
+
+Una Fattura (`Invoice`) è legata a un Client e ha un ciclo di vita gestito da
+uno **stato** (`InvoiceStatus`). Numero, data, importo e cliente sono gli unici
+campi modificabili con il `PUT`; lo stato non si passa mai nel body e si cambia
+solo con l'endpoint dedicato `PATCH /api/invoices/{invoiceId}/status`. Alla
+creazione la fattura nasce sempre nello stato iniziale (`BOZZA`).
+
+### Regole di autorizzazione
+
+| Operazione | USER | COMMERCIALE | CONTABILE | ADMIN |
+|---|:--:|:--:|:--:|:--:|
+| `GET` (lista e dettaglio) | ✅ | ✅ | ✅ | ✅ |
+| `POST` (creazione) | ❌ | ❌ | ✅ | ✅ |
+| `PUT` (modifica) | ❌ | ❌ | ✅ | ✅ |
+| `PATCH .../status` (transizione ordinaria) | ❌ | ❌ | ✅ | ✅ |
+| `PATCH .../status` → `INSOLUTA` | ❌ | ❌ | ❌ | ✅ |
+| `DELETE` | ❌ | ❌ | ✅ | ✅ |
+
+- La **lettura è aperta a tutti i ruoli autenticati**, senza filtro per
+  referente: un `COMMERCIALE` vede tutte le fatture, non solo quelle dei
+  clienti di cui è referente.
+- Il controllo di ruolo sulla transizione è fatto nel service: ogni stato ha un
+  `requiredRole` e, se chi effettua il cambio non è `ADMIN`, il suo ruolo deve
+  coincidere con quello richiesto dallo stato di destinazione (`INSOLUTA`
+  richiede `ADMIN`, tutti gli altri `CONTABILE`).
+
+### Stati e transizioni
+
+I 5 stati e le transizioni sono creati al primo avvio su database vuoto da
+`InvoiceStatusSeeder` (idempotente, non sovrascrive un grafo modificato via
+API):
+
+```
+BOZZA → EMESSA → PAGATA            (terminale)
+                → SCADUTA → INSOLUTA   (terminale)
+```
+
+Non esistono coppie inverse: non si torna mai a uno stato precedente e non si
+saltano stati. Una transizione non ammessa restituisce `400` con l'elenco degli
+stati raggiungibili.
+
+### Endpoint
+
+| Metodo | Endpoint | Descrizione |
+|---|---|---|
+| POST | `/api/invoices` | Crea una fattura (stato iniziale `BOZZA`) — `201` |
+| GET | `/api/invoices` | Lista paginata e filtrabile |
+| GET | `/api/invoices/{invoiceId}` | Dettaglio di una fattura |
+| PUT | `/api/invoices/{invoiceId}` | Modifica numero/data/importo/cliente (non lo stato) |
+| PATCH | `/api/invoices/{invoiceId}/status` | Cambia stato secondo il grafo delle transizioni |
+| DELETE | `/api/invoices/{invoiceId}` | Elimina una fattura — `204` |
+| GET | `/api/invoice-statuses` | Elenco degli stati (lettura libera) |
+| GET | `/api/invoice-statuses/{statusId}` | Dettaglio di uno stato (lettura libera) |
+| POST/PUT/DELETE | `/api/invoice-statuses/{statusId}` | Gestione del grafo degli stati — `CONTABILE` o `ADMIN` |
+
+### Parametri della lista (`GET /api/invoices`)
+
+Tutti opzionali, combinabili in AND.
+
+| Parametro | Tipo | Filtra su |
+|---|---|---|
+| `page`, `size`, `sortBy` | int, int, string | Paginazione e ordinamento (default `0`, `10`, `id`; `size` massimo `100`) |
+| `clientId` | long | Fatture del cliente indicato |
+| `statusId` | long | Fatture nello stato indicato |
+
+### Request body (`POST` / `PUT`)
+
+```json
+{
+  "invoiceNumber": "FT-2026-001",
+  "invoiceDate": "2026-09-03",
+  "amount": 1200.00,
+  "clientId": 7
+}
+```
+
+- `invoiceNumber` obbligatorio e unico tra tutte le fatture (duplicato → `400`).
+- `invoiceDate` obbligatoria, `amount` obbligatorio e `> 0`.
+- `clientId` obbligatorio e deve riferirsi a un cliente esistente (→ `404`).
+
+### Request body (`PATCH /api/invoices/{invoiceId}/status`)
+
+```json
+{ "newStatusId": 2 }
+```
+
+### Response (`POST` / `GET` / `PUT` / `PATCH`)
+
+```json
+{
+  "id": 1,
+  "invoiceNumber": "FT-2026-001",
+  "invoiceDate": "2026-09-03",
+  "amount": 1200.00,
+  "statusId": 1,
+  "statusName": "BOZZA",
+  "clientId": 7,
+  "clientCompanyName": "Acme S.r.l.",
+  "createdAt": "2026-09-03T10:15:30",
+  "updatedAt": "2026-09-03T10:15:30"
+}
+```
+
+`GET /api/invoices` restituisce lo stesso oggetto dentro la struttura `Page` di
+Spring.
 
 ## Gestione errori
 

@@ -6,6 +6,7 @@ import com.epicode.buildweekbackend3.repositories.InvoiceStatusesRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 // riavvio non duplica le righe e non sovrascrive un grafo che il CONTABILE
 // avesse modificato via API (che resta il modo previsto per cambiarlo).
 @Component
+@Order(1)
 public class InvoiceStatusSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(InvoiceStatusSeeder.class);

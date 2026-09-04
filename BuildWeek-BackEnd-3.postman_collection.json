@@ -690,7 +690,7 @@
 		},
 		{
 			"name": "Invoices",
-			"description": "GET (lista e dettaglio): USER, CONTABILE o ADMIN - COMMERCIALE non ha alcun accesso alle Fatture. POST/PUT/DELETE/cambio stato ordinario: CONTABILE o ADMIN. Transizione verso INSOLUTA: riservata ad ADMIN. Nasce sempre nello stato iniziale (BOZZA): lo stato non si passa alla creazione, si cambia solo con l'endpoint dedicato.",
+			"description": "GET (lista e dettaglio): USER, COMMERCIALE, CONTABILE o ADMIN - lettura aperta a tutti i ruoli autenticati, senza filtro per referente (un COMMERCIALE vede tutte le fatture). POST/PUT/DELETE/cambio stato ordinario: CONTABILE o ADMIN. Transizione verso INSOLUTA: riservata ad ADMIN. Nasce sempre nello stato iniziale (BOZZA): lo stato non si passa alla creazione, si cambia solo con l'endpoint dedicato.",
 			"item": [
 				{
 					"name": "Create invoice",
@@ -740,7 +740,7 @@
 								{ "key": "statusId", "value": "", "disabled": true }
 							]
 						},
-						"description": "clientId e statusId sono opzionali (query param disabilitati di default: abilitali e valorizzali per filtrare). Richiede USER, CONTABILE o ADMIN - un COMMERCIALE riceve 403."
+						"description": "clientId e statusId sono opzionali (query param disabilitati di default: abilitali e valorizzali per filtrare). Richiede USER, COMMERCIALE, CONTABILE o ADMIN."
 					}
 				},
 				{
@@ -753,7 +753,7 @@
 							"host": ["{{baseUrl}}"],
 							"path": ["api", "invoices", "{{invoiceId}}"]
 						},
-						"description": "Richiede USER, CONTABILE o ADMIN - un COMMERCIALE riceve 403."
+						"description": "Richiede USER, COMMERCIALE, CONTABILE o ADMIN."
 					}
 				},
 				{
