@@ -1,5 +1,8 @@
 HELP.md
 target/
+
+# Note personali, non da versionare
+discorso-presentazione.txt
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
